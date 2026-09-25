@@ -44,7 +44,7 @@
 
       <!-- Admin Console Link -->
       <a href="/admin" target="_blank" class="admin-portal-link" title="Open Master Admin Console">
-        ⚙️ Admin
+        <span>⚙️</span> <span class="admin-link-text">Admin Panel</span>
       </a>
 
       <!-- Sound Mute Toggle -->
@@ -53,211 +53,216 @@
   </header>
 
   <!-- Main Player Application Workspace -->
-  <main class="main-wrapper single-mode-player" id="main-content-container">
+  <main class="main-wrapper player-main-layout" id="main-content-container">
 
-    <!-- Frozen Account Notice Banner (Hidden by default, shown if user.status === 'frozen') -->
-    <div class="frozen-alert-banner" id="frozen-account-banner" style="display:none;">
-      <span>⚠️</span>
-      <div>
-        <strong>Account Restricted:</strong> This account has been frozen by the Admin. Placing new bets is disabled.
+    <!-- LEFT COLUMN: Wallet, Round Info & Interactive Betting Board -->
+    <div class="player-game-col">
+      <!-- Frozen Account Notice Banner (Hidden by default, shown if user.status === 'frozen') -->
+      <div class="frozen-alert-banner" id="frozen-account-banner" style="display:none;">
+        <span>⚠️</span>
+        <div>
+          <strong>Account Restricted:</strong> This account has been frozen by the Admin. Placing new bets is disabled.
+        </div>
       </div>
-    </div>
 
-    <!-- Wallet & Balance Card -->
-    <div class="wallet-hero-card">
-      <div class="wallet-hero-header">
-        <span class="wallet-hero-title">
-          <span>👛</span> Demo Wallet
-        </span>
-        <button class="switch-user-link-btn" id="btn-hero-switch-user" title="Change Player">
-          <span id="player-user-id">Player 8892</span> 🔄
+      <!-- Wallet & Balance Card -->
+      <div class="wallet-hero-card">
+        <div class="wallet-hero-header">
+          <span class="wallet-hero-title">
+            <span>👛</span> Demo Wallet
+          </span>
+          <button class="switch-user-link-btn" id="btn-hero-switch-user" title="Change Player">
+            <span id="player-user-id">Player 8892</span> 🔄
+          </button>
+        </div>
+        <div class="wallet-balance-row">
+          <div class="wallet-big-balance">
+            <span class="wallet-currency">₹</span><span id="hero-wallet-balance">5,000.00</span>
+          </div>
+          <button class="btn btn-primary btn-topup" onclick="document.getElementById('recharge-modal').classList.add('open')">
+            + Top Up
+          </button>
+        </div>
+        <div class="wallet-action-row">
+          <button class="wallet-chip-btn" data-recharge="100">+₹100</button>
+          <button class="wallet-chip-btn" data-recharge="500">+₹500</button>
+          <button class="wallet-chip-btn" data-recharge="1000">+₹1,000</button>
+          <button class="wallet-chip-btn" data-recharge="5000">+₹5,000</button>
+        </div>
+      </div>
+
+      <!-- Game Mode Duration Selector Tabs -->
+      <div class="game-tabs-card">
+        <button class="game-tab-btn" data-game="wingo_30">
+          <span class="tab-icon">⚡</span>
+          <span class="tab-name">Win Go 30s</span>
+        </button>
+        <button class="game-tab-btn active" data-game="wingo_60">
+          <span class="tab-icon">⏱️</span>
+          <span class="tab-name">Win Go 1Min</span>
+        </button>
+        <button class="game-tab-btn" data-game="wingo_180">
+          <span class="tab-icon">🕒</span>
+          <span class="tab-name">Win Go 3Min</span>
+        </button>
+        <button class="game-tab-btn" data-game="wingo_300">
+          <span class="tab-icon">⏳</span>
+          <span class="tab-name">Win Go 5Min</span>
         </button>
       </div>
-      <div class="wallet-balance-row">
-        <div class="wallet-big-balance">
-          <span class="wallet-currency">₹</span><span id="hero-wallet-balance">5,000.00</span>
-        </div>
-        <button class="btn btn-primary btn-topup" onclick="document.getElementById('recharge-modal').classList.add('open')">
-          + Top Up
-        </button>
-      </div>
-      <div class="wallet-action-row">
-        <button class="wallet-chip-btn" data-recharge="100">+₹100</button>
-        <button class="wallet-chip-btn" data-recharge="500">+₹500</button>
-        <button class="wallet-chip-btn" data-recharge="1000">+₹1,000</button>
-        <button class="wallet-chip-btn" data-recharge="5000">+₹5,000</button>
-      </div>
-    </div>
 
-    <!-- Game Mode Duration Selector Tabs -->
-    <div class="game-tabs-card">
-      <button class="game-tab-btn" data-game="wingo_30">
-        <span class="tab-icon">⚡</span>
-        <span class="tab-name">Win Go 30s</span>
-      </button>
-      <button class="game-tab-btn active" data-game="wingo_60">
-        <span class="tab-icon">⏱️</span>
-        <span class="tab-name">Win Go 1Min</span>
-      </button>
-      <button class="game-tab-btn" data-game="wingo_180">
-        <span class="tab-icon">🕒</span>
-        <span class="tab-name">Win Go 3Min</span>
-      </button>
-      <button class="game-tab-btn" data-game="wingo_300">
-        <span class="tab-icon">⏳</span>
-        <span class="tab-name">Win Go 5Min</span>
-      </button>
-    </div>
-
-    <!-- Round Info & Countdown Card -->
-    <div class="round-header-card" id="round-header-card">
-      <div class="round-info-top">
-        <div class="round-badge-group">
-          <span class="game-title-badge" id="current-game-title">Win Go 1Min</span>
-          <button class="how-to-play-btn" id="btn-how-to-play">📖 How to Play</button>
-        </div>
-      </div>
-
-      <div class="period-display-wrap">
-        <div class="period-meta">
-          <span class="period-label">Period ID</span>
-          <span class="period-number" id="current-period-num">202609250001</span>
+      <!-- Round Info & Countdown Card -->
+      <div class="round-header-card" id="round-header-card">
+        <div class="round-info-top">
+          <div class="round-badge-group">
+            <span class="game-title-badge" id="current-game-title">Win Go 1Min</span>
+            <button class="how-to-play-btn" id="btn-how-to-play">📖 How to Play</button>
+          </div>
         </div>
 
-        <div class="countdown-clock-wrap">
-          <span class="countdown-label">Time Remaining</span>
-          <div class="countdown-digits">
-            <div class="digit-box" id="digit-m0">0</div>
-            <div class="digit-box" id="digit-m1">0</div>
-            <span class="countdown-colon">:</span>
-            <div class="digit-box" id="digit-s0">6</div>
-            <div class="digit-box" id="digit-s1">0</div>
+        <div class="period-display-wrap">
+          <div class="period-meta">
+            <span class="period-label">Period ID</span>
+            <span class="period-number" id="current-period-num">202609250001</span>
+          </div>
+
+          <div class="countdown-clock-wrap">
+            <span class="countdown-label">Time Remaining</span>
+            <div class="countdown-digits">
+              <div class="digit-box" id="digit-m0">0</div>
+              <div class="digit-box" id="digit-m1">0</div>
+              <span class="countdown-colon">:</span>
+              <div class="digit-box" id="digit-s0">6</div>
+              <div class="digit-box" id="digit-s1">0</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Interactive Betting Board -->
-    <div class="betting-board" id="betting-board-container">
-      
-      <!-- Locked Overlay (Shows during last 5 seconds) -->
-      <div class="locked-overlay" id="locked-overlay-panel">
-        <div class="locked-countdown-circle" id="locked-countdown-num">5</div>
-        <div class="locked-msg">ROUND LOCKED</div>
-        <div class="locked-submsg">Bets closed for this period. Awaiting settlement...</div>
-      </div>
-
-      <!-- Tier 1: Color Choices (Green, Violet, Red) -->
-      <div class="color-choices-grid">
-        <button class="btn-bet-color btn-bet-green" data-option="green">
-          <span class="color-name">Green</span>
-          <span class="color-odds">2x / 1.5x</span>
-        </button>
-        <button class="btn-bet-color btn-bet-violet" data-option="violet">
-          <span class="color-name">Violet</span>
-          <span class="color-odds">4.5x</span>
-        </button>
-        <button class="btn-bet-color btn-bet-red" data-option="red">
-          <span class="color-name">Red</span>
-          <span class="color-odds">2x / 1.5x</span>
-        </button>
-      </div>
-
-      <!-- Tier 2: Number Balls 0 to 9 -->
-      <div class="number-balls-grid">
-        <button class="btn-bet-num num-ball-0" data-num="0">
-          <span class="num-val">0</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-1" data-num="1">
-          <span class="num-val">1</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-2" data-num="2">
-          <span class="num-val">2</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-3" data-num="3">
-          <span class="num-val">3</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-4" data-num="4">
-          <span class="num-val">4</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-5" data-num="5">
-          <span class="num-val">5</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-6" data-num="6">
-          <span class="num-val">6</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-7" data-num="7">
-          <span class="num-val">7</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-8" data-num="8">
-          <span class="num-val">8</span>
-          <span class="num-odds">9x</span>
-        </button>
-        <button class="btn-bet-num num-ball-9" data-num="9">
-          <span class="num-val">9</span>
-          <span class="num-odds">9x</span>
-        </button>
-      </div>
-
-      <!-- Tier 3: Big & Small Choices -->
-      <div class="big-small-grid">
-        <button class="btn-bet-size btn-bet-big" data-size="big">
-          <span>Big</span>
-          <span style="font-size:0.75rem;opacity:0.85;">(5-9) 2x</span>
-        </button>
-        <button class="btn-bet-size btn-bet-small" data-size="small">
-          <span>Small</span>
-          <span style="font-size:0.75rem;opacity:0.85;">(0-4) 2x</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- History & Records Section -->
-    <div class="history-section">
-      <div class="history-nav-tabs">
-        <button class="history-nav-tab active" data-tab="record">Game Record</button>
-        <button class="history-nav-tab" data-tab="trend">Chart / Trend</button>
-        <button class="history-nav-tab" data-tab="mybets">My History</button>
-        <button class="history-nav-tab" data-tab="ledger">Ledger</button>
-      </div>
-
-      <div class="history-tab-content">
-        <!-- Game Record Table Mount -->
-        <div id="tab-record-content">
-          <table class="record-table">
-            <thead>
-              <tr>
-                <th>Period</th>
-                <th>Number</th>
-                <th>Big/Small</th>
-                <th>Color</th>
-              </tr>
-            </thead>
-            <tbody id="record-table-body">
-              <!-- Dynamically rendered -->
-            </tbody>
-          </table>
+      <!-- Interactive Betting Board -->
+      <div class="betting-board" id="betting-board-container">
+        
+        <!-- Locked Overlay (Shows during last 5 seconds) -->
+        <div class="locked-overlay" id="locked-overlay-panel">
+          <div class="locked-countdown-circle" id="locked-countdown-num">5</div>
+          <div class="locked-msg">ROUND LOCKED</div>
+          <div class="locked-submsg">Bets closed for this period. Awaiting settlement...</div>
         </div>
 
-        <!-- Trend Chart Mount -->
-        <div id="trend-chart-mount" style="display:none;"></div>
+        <!-- Tier 1: Color Choices (Green, Violet, Red) -->
+        <div class="color-choices-grid">
+          <button class="btn-bet-color btn-bet-green" data-option="green">
+            <span class="color-name">Green</span>
+            <span class="color-odds">2x / 1.5x</span>
+          </button>
+          <button class="btn-bet-color btn-bet-violet" data-option="violet">
+            <span class="color-name">Violet</span>
+            <span class="color-odds">4.5x</span>
+          </button>
+          <button class="btn-bet-color btn-bet-red" data-option="red">
+            <span class="color-name">Red</span>
+            <span class="color-odds">2x / 1.5x</span>
+          </button>
+        </div>
 
-        <!-- My Bets Mount -->
-        <div id="my-bets-list-mount" class="my-bets-list" style="display:none;"></div>
+        <!-- Tier 2: Number Balls 0 to 9 -->
+        <div class="number-balls-grid">
+          <button class="btn-bet-num num-ball-0" data-num="0">
+            <span class="num-val">0</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-1" data-num="1">
+            <span class="num-val">1</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-2" data-num="2">
+            <span class="num-val">2</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-3" data-num="3">
+            <span class="num-val">3</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-4" data-num="4">
+            <span class="num-val">4</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-5" data-num="5">
+            <span class="num-val">5</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-6" data-num="6">
+            <span class="num-val">6</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-7" data-num="7">
+            <span class="num-val">7</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-8" data-num="8">
+            <span class="num-val">8</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-9" data-num="9">
+            <span class="num-val">9</span>
+            <span class="num-odds">9x</span>
+          </button>
+        </div>
 
-        <!-- Wallet Ledger Mount -->
-        <div id="ledger-list-mount" class="my-bets-list" style="display:none;"></div>
+        <!-- Tier 3: Big & Small Choices -->
+        <div class="big-small-grid">
+          <button class="btn-bet-size btn-bet-big" data-size="big">
+            <span>Big</span>
+            <span style="font-size:0.75rem;opacity:0.85;">(5-9) 2x</span>
+          </button>
+          <button class="btn-bet-size btn-bet-small" data-size="small">
+            <span>Small</span>
+            <span style="font-size:0.75rem;opacity:0.85;">(0-4) 2x</span>
+          </button>
+        </div>
       </div>
     </div>
 
+    <!-- RIGHT COLUMN: Live Charts, Records & History -->
+    <div class="player-history-col">
+      <!-- History & Records Section -->
+      <div class="history-section">
+        <div class="history-nav-tabs">
+          <button class="history-nav-tab active" data-tab="record">Game Record</button>
+          <button class="history-nav-tab" data-tab="trend">Chart / Trend</button>
+          <button class="history-nav-tab" data-tab="mybets">My History</button>
+          <button class="history-nav-tab" data-tab="ledger">Ledger</button>
+        </div>
+
+        <div class="history-tab-content">
+          <!-- Game Record Table Mount -->
+          <div id="tab-record-content">
+            <table class="record-table">
+              <thead>
+                <tr>
+                  <th>Period</th>
+                  <th>Number</th>
+                  <th>Big/Small</th>
+                  <th>Color</th>
+                </tr>
+              </thead>
+              <tbody id="record-table-body">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Trend Chart Mount -->
+          <div id="trend-chart-mount" style="display:none;"></div>
+
+          <!-- My Bets Mount -->
+          <div id="my-bets-list-mount" class="my-bets-list" style="display:none;"></div>
+
+          <!-- Wallet Ledger Mount -->
+          <div id="ledger-list-mount" class="my-bets-list" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
   </main>
 
   <!-- ========================================== -->

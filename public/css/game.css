@@ -729,6 +729,13 @@
   padding: 12px;
 }
 
+@media (min-width: 1025px) {
+  .history-tab-content {
+    max-height: 600px;
+    overflow-y: auto;
+  }
+}
+
 /* Game Record Table */
 .record-table {
   width: 100%;

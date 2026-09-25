@@ -343,33 +343,105 @@ body {
 
 /* Main Container Layouts */
 .main-wrapper {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 16px;
   width: 100%;
+  margin: 0 auto;
   box-sizing: border-box;
-  min-height: calc(100vh - 65px);
 }
 
-/* Single View Mode (Player centered or Admin full) */
-.single-mode-player {
-  max-width: 480px;
-  margin: 0 auto;
-  width: 100%;
+/* ======================================================== */
+/* DEVICE RESPONSIVE LAYOUT ENGINE                          */
+/* ======================================================== */
+
+/* 1. Desktop Pro View (>= 1025px): Side-by-side Live Trading Matrix */
+@media (min-width: 1025px) {
+  .player-main-layout {
+    display: grid;
+    grid-template-columns: 480px 1fr;
+    gap: 24px;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    align-items: start;
+    min-height: calc(100vh - 65px);
+  }
+
+  .player-game-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .player-history-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: sticky;
+    top: 75px;
+  }
+
+  .mobile-bottom-nav {
+    display: none !important;
+  }
 }
 
-.single-mode-admin {
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+/* 2. Tablet View (768px - 1024px): Comfortable Centered View */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .player-main-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 20px 16px 85px 16px;
+  }
+
+  .player-game-col, .player-history-col {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+  }
 }
 
-/* Split View Mode (Player on Left, Admin on Right) */
-.split-mode-container {
-  display: grid;
-  grid-template-columns: 460px 1fr;
-  gap: 20px;
-  align-items: start;
+/* 3. Mobile View (< 768px): Full Width Mobile-First App */
+@media (max-width: 767px) {
+  .player-main-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 10px 10px 80px 10px; /* space for mobile bottom nav */
+  }
+
+  .player-game-col, .player-history-col {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  .app-header {
+    padding: 8px 12px;
+  }
+  .brand-tag {
+    display: none;
+  }
+  .brand-name {
+    font-size: 1.1rem;
+  }
+  .user-wallet-pill span:first-child {
+    display: none;
+  }
 }
 
 /* Mobile Bottom Navigation Bar */
@@ -405,6 +477,7 @@ body {
   padding: 4px 14px;
   border-radius: var(--radius-sm);
   transition: var(--transition-fast);
+  text-decoration: none;
 }
 
 .mobile-nav-item .nav-icon {
@@ -416,46 +489,8 @@ body {
   color: var(--color-gold);
 }
 
-.mobile-nav-item.admin-active {
+.mobile-nav-item.admin-mob-link:hover {
   color: #f43f5e;
-}
-
-/* Responsive Media Queries */
-@media (max-width: 1024px) {
-  .split-btn {
-    display: none !important;
-  }
-  .split-mode-container {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .main-wrapper {
-    padding: 10px 10px 75px 10px; /* space for mobile bottom nav */
-  }
-  .mobile-bottom-nav {
-    display: flex;
-  }
-  .single-mode-player, .single-mode-admin {
-    max-width: 100%;
-    padding: 0;
-  }
-  .app-header {
-    padding: 8px 12px;
-  }
-  .brand-tag {
-    display: none;
-  }
-  .brand-name {
-    font-size: 1.1rem;
-  }
-  .user-wallet-pill span:first-child {
-    display: none;
-  }
-  .wallet-balance-val {
-    font-size: 0.85rem;
-  }
 }
 
 /* Frozen Account Alert */
@@ -596,6 +631,9 @@ body {
   .admin-portal-link {
     padding: 4px 8px;
     font-size: 0.75rem;
+  }
+  .admin-link-text {
+    display: none;
   }
   .user-wallet-pill {
     padding: 2px 4px 2px 8px;

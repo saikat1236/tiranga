@@ -422,3 +422,121 @@
   color: #60a5fa;
   border: 1px solid rgba(59, 130, 246, 0.4);
 }
+
+/* Mobile & Tablet Responsive Admin Styles */
+@media (max-width: 768px) {
+  .admin-status-banner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+  }
+  .admin-badge-left {
+    gap: 10px;
+  }
+  .admin-shield-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .admin-title-group h2 {
+    font-size: 1.05rem;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .admin-period-info {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 0.78rem;
+    margin-top: 4px;
+  }
+  .admin-banner-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .admin-banner-actions select {
+    flex: 1;
+    min-width: 0;
+    width: 100% !important;
+  }
+
+  .admin-card {
+    padding: 12px;
+    border-radius: var(--radius-md);
+  }
+  .admin-card-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .admin-card-title {
+    font-size: 1rem;
+  }
+  .admin-fast-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  .admin-fast-actions button {
+    flex: 1;
+    padding: 8px 6px;
+    font-size: 0.75rem;
+  }
+
+  .mode-pills-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .mode-pill-btn {
+    padding: 8px 10px;
+  }
+  .mode-pill-title {
+    font-size: 0.8rem;
+  }
+  .mode-pill-desc {
+    display: none;
+  }
+
+  .override-container {
+    padding: 12px;
+    gap: 10px;
+  }
+  .override-status-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .active-override-label {
+    font-size: 0.8rem;
+  }
+  .override-number-keypad {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .override-key-btn {
+    font-size: 1.15rem;
+  }
+
+  .exposure-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+  }
+  .exposure-table, .audit-table {
+    min-width: 520px;
+  }
+  .exposure-table th, .exposure-table td {
+    padding: 8px 8px;
+    font-size: 0.78rem;
+  }
+
+  .admin-users-grid {
+    grid-template-columns: 1fr;
+  }
+}

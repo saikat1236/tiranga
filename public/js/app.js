@@ -1,8 +1,8 @@
-// Main Application Controller & View Orchestrator
-
 class MainApp {
   constructor() {
-    this.currentViewMode = 'split'; // 'player' | 'admin' | 'split'
+    // Automatically detect mobile / tablet screens
+    const isMobileOrTablet = window.innerWidth < 1024;
+    this.currentViewMode = isMobileOrTablet ? 'player' : 'split';
   }
 
   async init() {
@@ -77,12 +77,48 @@ class MainApp {
   }
 
   bindGlobalEvents() {
-    // View Switcher Buttons
+    // Top View Switcher Buttons
     document.querySelectorAll('.view-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.view;
         this.setViewMode(mode);
       });
+    });
+
+    // Mobile Bottom Navigation Buttons
+    document.querySelectorAll('.mobile-nav-item').forEach(navBtn => {
+      navBtn.addEventListener('click', () => {
+        const target = navBtn.dataset.mobview;
+        if (target === 'game') {
+          this.setViewMode('player');
+          // Switch to record tab
+          const recordTab = document.querySelector('.history-nav-tab[data-tab="record"]');
+          if (recordTab) recordTab.click();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (target === 'trend') {
+          this.setViewMode('player');
+          const trendTab = document.querySelector('.history-nav-tab[data-tab="trend"]');
+          if (trendTab) trendTab.click();
+          const histSec = document.querySelector('.history-section');
+          if (histSec) histSec.scrollIntoView({ behavior: 'smooth' });
+        } else if (target === 'mybets') {
+          this.setViewMode('player');
+          const betsTab = document.querySelector('.history-nav-tab[data-tab="mybets"]');
+          if (betsTab) betsTab.click();
+          const histSec = document.querySelector('.history-section');
+          if (histSec) histSec.scrollIntoView({ behavior: 'smooth' });
+        } else if (target === 'admin') {
+          this.setViewMode('admin');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    });
+
+    // Handle screen resize smoothly
+    window.addEventListener('resize', () => {
+      if (window.innerWidth < 1024 && this.currentViewMode === 'split') {
+        this.setViewMode('player');
+      }
     });
 
     // Audio Mute/Unmute Toggle
@@ -109,6 +145,22 @@ class MainApp {
 
     document.querySelectorAll('.view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === mode);
+    });
+
+    // Update bottom nav active indicators
+    document.querySelectorAll('.mobile-nav-item').forEach(navBtn => {
+      const mobTarget = navBtn.dataset.mobview;
+      if (mode === 'admin') {
+        navBtn.classList.toggle('active', mobTarget === 'admin');
+        navBtn.classList.toggle('admin-active', mobTarget === 'admin');
+      } else {
+        navBtn.classList.toggle('admin-active', false);
+        if (mobTarget === 'admin') {
+          navBtn.classList.remove('active');
+        } else if (mobTarget === 'game' && mode === 'player') {
+          navBtn.classList.add('active');
+        }
+      }
     });
 
     const mainContainer = document.getElementById('main-content-container');

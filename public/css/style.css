@@ -40,10 +40,13 @@
   --shadow-glow: 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
-* {
+html, body {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -53,7 +56,6 @@ body {
   color: var(--text-main);
   line-height: 1.5;
   min-height: 100vh;
-  overflow-x: hidden;
   background-image: 
     radial-gradient(circle at 15% 15%, rgba(0, 230, 118, 0.04) 0%, transparent 40%),
     radial-gradient(circle at 85% 25%, rgba(255, 42, 85, 0.04) 0%, transparent 40%),
@@ -273,31 +275,135 @@ body {
   max-width: 1440px;
   margin: 0 auto;
   padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
   min-height: calc(100vh - 65px);
 }
 
 /* Single View Mode (Player centered or Admin full) */
 .single-mode-player {
-  max-width: 520px;
+  max-width: 480px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .single-mode-admin {
-  max-width: 1280px;
+  max-width: 1200px;
   margin: 0 auto;
+  width: 100%;
 }
 
 /* Split View Mode (Player on Left, Admin on Right) */
 .split-mode-container {
   display: grid;
-  grid-template-columns: 480px 1fr;
+  grid-template-columns: 460px 1fr;
   gap: 20px;
   align-items: start;
 }
 
+/* Mobile Bottom Navigation Bar */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(10, 13, 20, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-light);
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+
+.mobile-nav-item .nav-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.mobile-nav-item.active {
+  color: var(--color-gold);
+}
+
+.mobile-nav-item.admin-active {
+  color: #f43f5e;
+}
+
+/* Responsive Media Queries */
 @media (max-width: 1024px) {
+  .split-btn {
+    display: none !important;
+  }
   .split-mode-container {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-wrapper {
+    padding: 10px 10px 75px 10px; /* space for mobile bottom nav */
+  }
+  .mobile-bottom-nav {
+    display: flex;
+  }
+  .single-mode-player, .single-mode-admin {
+    max-width: 100%;
+    padding: 0;
+  }
+  .app-header {
+    padding: 8px 12px;
+  }
+  .brand-tag {
+    display: none;
+  }
+  .brand-name {
+    font-size: 1.1rem;
+  }
+  .user-wallet-pill span:first-child {
+    display: none;
+  }
+  .wallet-balance-val {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .logo-badge {
+    width: 32px;
+    height: 32px;
+  }
+  .logo-badge::after {
+    font-size: 16px;
+  }
+  .brand-name {
+    font-size: 1rem;
+  }
+  .view-mode-selector {
+    display: none; /* Handled by sleek mobile bottom nav on small phones */
   }
 }
 

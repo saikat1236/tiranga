@@ -945,3 +945,99 @@
   margin: 10px 0;
   text-shadow: 0 0 20px rgba(0, 230, 118, 0.6);
 }
+
+/* Mobile Responsive Game Styles */
+@media (max-width: 600px) {
+  .wallet-hero-card {
+    padding: 14px;
+    border-radius: var(--radius-md);
+  }
+  .wallet-big-balance {
+    font-size: 1.6rem;
+  }
+  .wallet-chip-btn {
+    font-size: 0.72rem;
+    padding: 5px 0;
+  }
+
+  .game-tabs-card {
+    padding: 3px;
+    gap: 2px;
+  }
+  .game-tab-btn {
+    padding: 6px 2px;
+  }
+  .game-tab-btn .tab-icon {
+    font-size: 1rem;
+  }
+  .game-tab-btn .tab-name {
+    font-size: 0.68rem;
+  }
+
+  .round-header-card {
+    padding: 12px;
+  }
+  .period-display-wrap {
+    padding: 8px 10px;
+  }
+  .period-label, .countdown-label {
+    font-size: 0.68rem;
+  }
+  .period-number {
+    font-size: 0.95rem;
+  }
+  .digit-box {
+    min-width: 20px;
+    height: 28px;
+    font-size: 1.05rem;
+  }
+  .countdown-colon {
+    font-size: 1.05rem;
+  }
+
+  .betting-board {
+    padding: 12px;
+    gap: 10px;
+  }
+  .btn-bet-color {
+    padding: 10px 4px;
+  }
+  .color-name {
+    font-size: 0.85rem;
+  }
+  .color-odds {
+    font-size: 0.62rem;
+    padding: 1px 4px;
+  }
+
+  .number-balls-grid {
+    gap: 6px;
+  }
+  .num-val {
+    font-size: 1.2rem;
+  }
+  .num-odds {
+    font-size: 0.58rem;
+  }
+
+  .btn-bet-size {
+    padding: 10px;
+    font-size: 0.92rem;
+  }
+
+  .trend-table th, .trend-table td {
+    padding: 4px 1px;
+    min-width: 20px;
+    font-size: 0.7rem;
+  }
+  .trend-num-active {
+    width: 18px;
+    height: 18px;
+    font-size: 0.75rem;
+  }
+
+  .modal-card {
+    max-width: 95vw;
+    margin: 8px;
+  }
+}

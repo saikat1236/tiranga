@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiranga Colour Prediction | Win Go Lottery & Admin Control</title>
+  <meta name="description" content="Tiranga-style real-time colour prediction simulation with Win Go 30s/1m/3m/5m, interactive live betting, wallet ledger, and powerful admin outcome controller.">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/game.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+
+  <!-- Fullscreen Confetti Canvas for Victory Celebrations -->
+  <canvas id="confetti-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;"></canvas>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-logo">
+        <div class="logo-badge"></div>
+        <div class="brand-name">
+          TIRANGA <span>PRO</span>
+          <span class="brand-tag">SIMULATOR</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Mode Switcher -->
+    <div class="view-mode-selector">
+      <button class="view-btn split-btn active" data-view="split" title="Side-by-side Player and Admin view">
+        🔲 Split Screen
+      </button>
+      <button class="view-btn" data-view="player" title="Player Mobile Experience">
+        🎮 Player App
+      </button>
+      <button class="view-btn admin-btn" data-view="admin" title="Admin Game Controller">
+        ⚙️ Admin Panel
+      </button>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <!-- User Wallet Pill -->
+      <div class="user-wallet-pill" id="header-wallet-pill" title="Current Wallet Balance">
+        <span style="font-size:0.8rem;color:var(--text-muted);">Balance:</span>
+        <span class="wallet-balance-val" id="header-wallet-balance">₹5,000.00</span>
+        <button class="quick-add-btn" id="btn-open-recharge" title="Recharge Demo Credits">+</button>
+      </div>
+
+      <!-- Sound Mute Toggle -->
+      <button class="icon-btn" id="btn-sound-toggle" title="Toggle Sound">🔊</button>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="main-wrapper split-mode-container" id="main-content-container">
+
+    <!-- ========================================== -->
+    <!--           PLAYER GAME PANEL (LEFT)         -->
+    <!-- ========================================== -->
+    <section class="player-container" id="player-app-panel">
+
+      <!-- Wallet & Balance Card -->
+      <div class="wallet-hero-card">
+        <div class="wallet-hero-header">
+          <span class="wallet-hero-title">
+            <span>👛</span> Demo Wallet
+          </span>
+          <span class="wallet-user-id" id="player-user-id">Player 8892</span>
+        </div>
+        <div class="wallet-balance-row">
+          <div class="wallet-big-balance">
+            <span class="wallet-currency">₹</span><span id="hero-wallet-balance">5,000.00</span>
+          </div>
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:0.82rem;" onclick="document.getElementById('recharge-modal').classList.add('open')">
+            + Top Up
+          </button>
+        </div>
+        <div class="wallet-action-row">
+          <button class="wallet-chip-btn" data-recharge="100">+₹100</button>
+          <button class="wallet-chip-btn" data-recharge="500">+₹500</button>
+          <button class="wallet-chip-btn" data-recharge="1000">+₹1,000</button>
+          <button class="wallet-chip-btn" data-recharge="5000">+₹5,000</button>
+        </div>
+      </div>
+
+      <!-- Game Mode Duration Selector Tabs -->
+      <div class="game-tabs-card">
+        <button class="game-tab-btn" data-game="wingo_30">
+          <span class="tab-icon">⚡</span>
+          <span class="tab-name">Win Go 30s</span>
+        </button>
+        <button class="game-tab-btn active" data-game="wingo_60">
+          <span class="tab-icon">⏱️</span>
+          <span class="tab-name">Win Go 1Min</span>
+        </button>
+        <button class="game-tab-btn" data-game="wingo_180">
+          <span class="tab-icon">🕒</span>
+          <span class="tab-name">Win Go 3Min</span>
+        </button>
+        <button class="game-tab-btn" data-game="wingo_300">
+          <span class="tab-icon">⏳</span>
+          <span class="tab-name">Win Go 5Min</span>
+        </button>
+      </div>
+
+      <!-- Round Info & Countdown Card -->
+      <div class="round-header-card" id="round-header-card">
+        <div class="round-info-top">
+          <div class="round-badge-group">
+            <span class="game-title-badge" id="current-game-title">Win Go 1Min</span>
+            <button class="how-to-play-btn" id="btn-how-to-play">📖 How to Play</button>
+          </div>
+        </div>
+
+        <div class="period-display-wrap">
+          <div class="period-meta">
+            <span class="period-label">Period ID</span>
+            <span class="period-number" id="current-period-num">202609250001</span>
+          </div>
+
+          <div class="countdown-clock-wrap">
+            <span class="countdown-label">Time Remaining</span>
+            <div class="countdown-digits">
+              <div class="digit-box" id="digit-m0">0</div>
+              <div class="digit-box" id="digit-m1">0</div>
+              <span class="countdown-colon">:</span>
+              <div class="digit-box" id="digit-s0">6</div>
+              <div class="digit-box" id="digit-s1">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Betting Board -->
+      <div class="betting-board" id="betting-board-container">
+        
+        <!-- Locked Overlay (Shows during last 5 seconds) -->
+        <div class="locked-overlay" id="locked-overlay-panel">
+          <div class="locked-countdown-circle" id="locked-countdown-num">5</div>
+          <div class="locked-msg">ROUND LOCKED</div>
+          <div class="locked-submsg">Bets closed for this period. Awaiting settlement...</div>
+        </div>
+
+        <!-- Tier 1: Color Choices (Green, Violet, Red) -->
+        <div class="color-choices-grid">
+          <button class="btn-bet-color btn-bet-green" data-option="green">
+            <span class="color-name">Green</span>
+            <span class="color-odds">2x / 1.5x</span>
+          </button>
+          <button class="btn-bet-color btn-bet-violet" data-option="violet">
+            <span class="color-name">Violet</span>
+            <span class="color-odds">4.5x</span>
+          </button>
+          <button class="btn-bet-color btn-bet-red" data-option="red">
+            <span class="color-name">Red</span>
+            <span class="color-odds">2x / 1.5x</span>
+          </button>
+        </div>
+
+        <!-- Tier 2: Number Balls 0 to 9 -->
+        <div class="number-balls-grid">
+          <button class="btn-bet-num num-ball-0" data-num="0">
+            <span class="num-val">0</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-1" data-num="1">
+            <span class="num-val">1</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-2" data-num="2">
+            <span class="num-val">2</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-3" data-num="3">
+            <span class="num-val">3</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-4" data-num="4">
+            <span class="num-val">4</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-5" data-num="5">
+            <span class="num-val">5</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-6" data-num="6">
+            <span class="num-val">6</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-7" data-num="7">
+            <span class="num-val">7</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-8" data-num="8">
+            <span class="num-val">8</span>
+            <span class="num-odds">9x</span>
+          </button>
+          <button class="btn-bet-num num-ball-9" data-num="9">
+            <span class="num-val">9</span>
+            <span class="num-odds">9x</span>
+          </button>
+        </div>
+
+        <!-- Tier 3: Big & Small Choices -->
+        <div class="big-small-grid">
+          <button class="btn-bet-size btn-bet-big" data-size="big">
+            <span>Big</span>
+            <span style="font-size:0.75rem;opacity:0.85;">(5-9) 2x</span>
+          </button>
+          <button class="btn-bet-size btn-bet-small" data-size="small">
+            <span>Small</span>
+            <span style="font-size:0.75rem;opacity:0.85;">(0-4) 2x</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- History & Records Section -->
+      <div class="history-section">
+        <div class="history-nav-tabs">
+          <button class="history-nav-tab active" data-tab="record">Game Record</button>
+          <button class="history-nav-tab" data-tab="trend">Chart / Trend</button>
+          <button class="history-nav-tab" data-tab="mybets">My History</button>
+          <button class="history-nav-tab" data-tab="ledger">Ledger</button>
+        </div>
+
+        <div class="history-tab-content">
+          <!-- Game Record Table Mount -->
+          <div id="tab-record-content">
+            <table class="record-table">
+              <thead>
+                <tr>
+                  <th>Period</th>
+                  <th>Number</th>
+                  <th>Big/Small</th>
+                  <th>Color</th>
+                </tr>
+              </thead>
+              <tbody id="record-table-body">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Trend Chart Mount -->
+          <div id="trend-chart-mount" style="display:none;"></div>
+
+          <!-- My Bets Mount -->
+          <div id="my-bets-list-mount" class="my-bets-list" style="display:none;"></div>
+
+          <!-- Wallet Ledger Mount -->
+          <div id="ledger-list-mount" class="my-bets-list" style="display:none;"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!--           ADMIN CONTROL PANEL (RIGHT)      -->
+    <!-- ========================================== -->
+    <section class="admin-container" id="admin-app-panel">
+
+      <!-- Admin Status Banner -->
+      <div class="admin-status-banner">
+        <div class="admin-badge-left">
+          <div class="admin-shield-icon">⚙️</div>
+          <div class="admin-title-group">
+            <h2>
+              Master Control Panel
+              <span class="admin-live-badge"><span class="admin-live-dot"></span> LIVE CONTROL</span>
+            </h2>
+            <div class="admin-period-info">
+              <span>Period: <strong id="admin-live-period">--</strong></span>
+              <span>Countdown: <strong id="admin-live-timer" style="color:var(--color-gold);">00:00</strong></span>
+              <span>Round Bets: <strong id="admin-live-bets-count">0</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-banner-actions">
+          <select id="admin-game-select" class="form-input" style="width:140px;padding:6px 10px;font-size:0.85rem;">
+            <option value="wingo_30">Win Go 30s</option>
+            <option value="wingo_60" selected>Win Go 1Min</option>
+            <option value="wingo_180">Win Go 3Min</option>
+            <option value="wingo_300">Win Go 5Min</option>
+          </select>
+          <button class="icon-btn" id="btn-admin-refresh" title="Refresh Live State">🔄</button>
+        </div>
+      </div>
+
+      <!-- Core Game Output Controller Card -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>🎮</span> Game Output Determination Mode
+          </div>
+          <div class="admin-fast-actions">
+            <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.8rem;" id="btn-admin-speed-timer">
+              ⏩ Fast Forward (5s left)
+            </button>
+            <button class="btn btn-danger" style="padding:6px 12px;font-size:0.8rem;" id="btn-admin-force-settle">
+              ⚡ Force Settle Now
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Operational Modes -->
+        <div class="mode-pills-grid">
+          <button class="mode-pill-btn active" data-mode="manual">
+            <span class="mode-pill-title">🎯 Manual Override</span>
+            <span class="mode-pill-desc">You choose the exact next winning number (0-9) directly.</span>
+          </button>
+          <button class="mode-pill-btn min-payout" data-mode="min_payout">
+            <span class="mode-pill-title">🛡️ House Advantage (Min Payout)</span>
+            <span class="mode-pill-desc">Auto-picks outcome paying lowest total money to players.</span>
+          </button>
+          <button class="mode-pill-btn" data-mode="random">
+            <span class="mode-pill-title">🎲 Fair Random</span>
+            <span class="mode-pill-desc">Cryptographically secure server random number generator.</span>
+          </button>
+          <button class="mode-pill-btn" data-mode="max_payout">
+            <span class="mode-pill-title">🎁 Promotional (Max Payout)</span>
+            <span class="mode-pill-desc">Auto-picks outcome with maximum payout for players.</span>
+          </button>
+        </div>
+
+        <!-- Interactive Direct Outcome Override Keypad -->
+        <div class="override-container">
+          <div class="override-status-bar">
+            <div class="active-override-label" id="active-override-label">
+              🎯 <strong>Next Forced Outcome:</strong> Click any number below to guarantee it wins!
+            </div>
+            <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.75rem;" id="btn-clear-override">
+              Clear Override
+            </button>
+          </div>
+
+          <!-- Numbers 0-9 Keypad -->
+          <div class="override-number-keypad">
+            <button class="override-key-btn num-ball-0" data-num="0">
+              <span>0</span>
+              <span class="override-key-sub">Red/Vio</span>
+            </button>
+            <button class="override-key-btn num-ball-1" data-num="1">
+              <span>1</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+            <button class="override-key-btn num-ball-2" data-num="2">
+              <span>2</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-3" data-num="3">
+              <span>3</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+            <button class="override-key-btn num-ball-4" data-num="4">
+              <span>4</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-5" data-num="5">
+              <span>5</span>
+              <span class="override-key-sub">Grn/Vio</span>
+            </button>
+            <button class="override-key-btn num-ball-6" data-num="6">
+              <span>6</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-7 selected" data-num="7">
+              <span>7</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+            <button class="override-key-btn num-ball-8" data-num="8">
+              <span>8</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-9" data-num="9">
+              <span>9</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Exposure & House Profit Simulator Table -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>📊</span> Live Round Exposure & House Profit Simulator
+          </div>
+          <div style="font-size:0.85rem;font-family:var(--font-mono);">
+            Total Wagered This Round: <strong id="admin-total-wagered" style="color:var(--color-gold);">₹0.00</strong>
+          </div>
+        </div>
+
+        <div id="admin-options-breakdown" style="margin-bottom:12px;"></div>
+
+        <div class="exposure-table-wrap">
+          <table class="exposure-table">
+            <thead>
+              <tr>
+                <th>Outcome Number</th>
+                <th>Attributes</th>
+                <th>Player Payout</th>
+                <th>House Net Profit / Margin</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="exposure-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- User Management Card -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>👥</span> Players & Wallets Management
+          </div>
+        </div>
+        <div class="admin-users-grid" id="admin-users-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Audit History Card -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>📜</span> Settlement Audit Log
+          </div>
+        </div>
+        <div class="exposure-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Winner</th>
+                <th>Determination Method</th>
+                <th>Total Bets</th>
+                <th>Payout</th>
+                <th>House Profit</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="audit-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!--                 MODALS                     -->
+  <!-- ========================================== -->
+
+  <!-- Betting Modal Drawer -->
+  <div class="modal-overlay" id="bet-drawer-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Win Go Prediction</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="bet-drawer-header" id="bet-drawer-header-box">
+          <div class="bet-target-badge" id="modal-bet-target">Select GREEN</div>
+        </div>
+
+        <div class="bet-drawer-body">
+          <!-- Contract Amount Units -->
+          <div>
+            <div class="bet-label-row">
+              <span>Balance Units</span>
+              <span>Select Base</span>
+            </div>
+            <div class="bet-chip-row" style="margin-top:6px;">
+              <button class="bet-chip-btn" data-unit="1">₹1</button>
+              <button class="bet-chip-btn active" data-unit="10">₹10</button>
+              <button class="bet-chip-btn" data-unit="100">₹100</button>
+              <button class="bet-chip-btn" data-unit="1000">₹1000</button>
+            </div>
+          </div>
+
+          <!-- Quantity Stepper -->
+          <div>
+            <div class="bet-label-row">
+              <span>Contract Quantity</span>
+            </div>
+            <div class="qty-stepper" style="margin-top:6px;">
+              <button class="qty-btn" id="bet-qty-minus">-</button>
+              <input type="number" id="bet-qty-input" class="qty-input" value="1" min="1">
+              <button class="qty-btn" id="bet-qty-plus">+</button>
+            </div>
+          </div>
+
+          <!-- Multipliers -->
+          <div>
+            <div class="bet-label-row">
+              <span>Multiplier</span>
+            </div>
+            <div class="multiplier-row" style="margin-top:6px;">
+              <button class="multi-btn active" data-mult="1">X1</button>
+              <button class="multi-btn" data-mult="5">X5</button>
+              <button class="multi-btn" data-mult="10">X10</button>
+              <button class="multi-btn" data-mult="20">X20</button>
+              <button class="multi-btn" data-mult="50">X50</button>
+              <button class="multi-btn" data-mult="100">X100</button>
+            </div>
+          </div>
+
+          <!-- Summary calculation -->
+          <div class="bet-summary-box">
+            <div class="summary-line">
+              <span>Contract Amount</span>
+              <span id="calc-net-contract">₹9.80</span>
+            </div>
+            <div class="summary-line">
+              <span>Service Fee (2%)</span>
+              <span id="calc-fee-amount">₹0.20</span>
+            </div>
+            <div class="summary-line total">
+              <span>Total Bet Amount</span>
+              <span class="total-amount" id="calc-total-amount">₹10</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-bet" style="flex:1;">
+          Confirm Bet
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Win Victory Celebration Modal -->
+  <div class="modal-overlay" id="win-celebration-modal">
+    <div class="modal-card win-modal-card">
+      <div class="modal-body" style="padding:32px 24px;">
+        <div class="win-trophy-icon">🏆</div>
+        <div class="win-title">Congratulations!</div>
+        <div style="color:var(--text-muted);font-size:0.9rem;">You won the prediction!</div>
+        <div class="win-amount-badge" id="win-modal-amount">+₹0.00</div>
+        <div style="font-size:0.85rem;color:var(--text-dim);font-family:var(--font-mono);" id="win-modal-desc">
+          Period: 202609250001
+        </div>
+        <button class="btn btn-primary modal-close-btn" style="margin-top:20px;width:100%;">
+          Awesome! Continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Wallet Recharge Modal -->
+  <div class="modal-overlay" id="recharge-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Recharge Demo Wallet</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Enter Amount (₹)</label>
+          <input type="number" id="recharge-amount-input" class="form-input" value="1000" min="10" step="10">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button class="btn btn-secondary" style="flex:1;padding:6px;" onclick="document.getElementById('recharge-amount-input').value = 500">+₹500</button>
+          <button class="btn btn-secondary" style="flex:1;padding:6px;" onclick="document.getElementById('recharge-amount-input').value = 1000">+₹1,000</button>
+          <button class="btn btn-secondary" style="flex:1;padding:6px;" onclick="document.getElementById('recharge-amount-input').value = 5000">+₹5,000</button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-dim);">
+          * This is a virtual simulation wallet. Demo credits are issued instantaneously for testing and gameplay.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-recharge">Add Credits</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Adjust Balance Modal -->
+  <div class="modal-overlay" id="adjust-balance-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Admin Adjust Balance</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="adjust-user-id">
+        <div class="form-group">
+          <label class="form-label">Set New Wallet Balance (₹)</label>
+          <input type="number" id="adjust-balance-val" class="form-input" min="0" step="10">
+        </div>
+        <p style="font-size:0.78rem;color:var(--text-dim);">
+          This adjustment will immediately modify the player's balance and generate a ledger entry with audit reference.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-adjust-bal">Update Balance</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to Play / Rules Modal -->
+  <div class="modal-overlay" id="rules-modal">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-header">
+        <div class="modal-title">Win Go Game Rules & Payouts</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="font-size:0.85rem;line-height:1.6;display:flex;flex-direction:column;gap:12px;max-height:70vh;overflow-y:auto;">
+        <div>
+          <strong style="color:var(--color-gold);">1. Round Lifecycle:</strong>
+          <p>Each period has a fixed countdown (e.g. 60s or 30s). The final 5 seconds lock the round so no new bets can be submitted. The server then settles the round according to the winning number (0-9).</p>
+        </div>
+        <div>
+          <strong style="color:var(--color-gold);">2. Colour Multipliers:</strong>
+          <ul style="padding-left:18px;margin-top:4px;">
+            <li><strong style="color:#00e676;">Green:</strong> If result is 1, 3, 7, 9 -> <strong>2x payout</strong>. If 5 -> <strong>1.5x payout</strong>.</li>
+            <li><strong style="color:#ff2a55;">Red:</strong> If result is 2, 4, 6, 8 -> <strong>2x payout</strong>. If 0 -> <strong>1.5x payout</strong>.</li>
+            <li><strong style="color:#a855f7;">Violet:</strong> If result is 0 or 5 -> <strong>4.5x payout</strong>.</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:var(--color-gold);">3. Number Multipliers:</strong>
+          <p>Choose exact number from 0 to 9. If your number hits, you win <strong>9x payout</strong>!</p>
+        </div>
+        <div>
+          <strong style="color:var(--color-gold);">4. Big / Small:</strong>
+          <ul style="padding-left:18px;margin-top:4px;">
+            <li><strong>Big:</strong> Numbers 5, 6, 7, 8, 9 -> <strong>2x payout</strong>.</li>
+            <li><strong>Small:</strong> Numbers 0, 1, 2, 3, 4 -> <strong>2x payout</strong>.</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:var(--color-gold);">5. Service Fee:</strong>
+          <p>A standard 2% handling fee is deducted on contract entry as specified in the Tiranga technical document.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary modal-close-btn">Understood</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="/js/sound.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/game.js"></script>
+  <script src="/js/admin.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

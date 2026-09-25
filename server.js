@@ -33,7 +33,40 @@ const db = {
       name: 'Player 8892',
       mobile: '+91 98765 43210',
       balance: 5000.00,
+      status: 'active', // 'active' | 'frozen'
       createdAt: new Date().toISOString()
+    },
+    'user_rahul': {
+      id: 'user_rahul',
+      name: 'Rahul Sharma',
+      mobile: '+91 98111 22334',
+      balance: 2850.00,
+      status: 'active',
+      createdAt: new Date(Date.now() - 86400000 * 3).toISOString()
+    },
+    'user_priya': {
+      id: 'user_priya',
+      name: 'Priya Patel',
+      mobile: '+91 97222 33445',
+      balance: 14200.00,
+      status: 'active',
+      createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
+    },
+    'user_vikram': {
+      id: 'user_vikram',
+      name: 'Vikramaditya VIP',
+      mobile: '+91 99999 88888',
+      balance: 58000.00,
+      status: 'active',
+      createdAt: new Date(Date.now() - 86400000 * 10).toISOString()
+    },
+    'user_amit': {
+      id: 'user_amit',
+      name: 'Amit Kumar',
+      mobile: '+91 91234 56789',
+      balance: 120.00,
+      status: 'frozen',
+      createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
     }
   },
   walletLedger: [],
@@ -560,6 +593,10 @@ app.post('/api/bet', (req, res) => {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
 
+  if (user.status === 'frozen') {
+    return res.status(403).json({ success: false, error: 'Account is frozen by Admin. Betting is restricted.' });
+  }
+
   if (user.balance < betAmount) {
     return res.status(400).json({ success: false, error: 'Insufficient wallet balance. Please recharge demo credits.' });
   }
@@ -659,20 +696,152 @@ app.get('/api/wallet/ledger', (req, res) => {
   res.json({ success: true, ledger: userLedger });
 });
 
-// Admin: Get Users list
-app.get('/api/admin/users', (req, res) => {
-  const usersList = Object.values(db.users).map(u => {
-    const bets = db.userBets.filter(b => b.userId === u.id);
-    const totalWagered = bets.reduce((sum, b) => sum + b.amount, 0);
-    const totalWon = bets.filter(b => b.status === 'WON').reduce((sum, b) => sum + b.payout, 0);
-    return {
-      ...u,
-      totalBetsCount: bets.length,
-      totalWagered: Math.round(totalWagered * 100) / 100,
-      totalWon: Math.round(totalWon * 100) / 100
-    };
-  });
+// ==========================================
+//           USER MANAGEMENT APIS
+// ==========================================
+
+// Helper to format user with financial statistics
+function formatUserStats(u) {
+  const bets = db.userBets.filter(b => b.userId === u.id);
+  const totalWagered = bets.reduce((sum, b) => sum + b.amount, 0);
+  const totalWon = bets.filter(b => b.status === 'WON').reduce((sum, b) => sum + b.payout, 0);
+  const netProfit = Math.round((totalWon - totalWagered) * 100) / 100;
+  return {
+    ...u,
+    totalBetsCount: bets.length,
+    totalWagered: Math.round(totalWagered * 100) / 100,
+    totalWon: Math.round(totalWon * 100) / 100,
+    netProfit: netProfit
+  };
+}
+
+// 1. Get all users
+app.get('/api/users', (req, res) => {
+  const usersList = Object.values(db.users).map(formatUserStats);
   res.json({ success: true, users: usersList });
+});
+
+// Admin compatibility route
+app.get('/api/admin/users', (req, res) => {
+  const usersList = Object.values(db.users).map(formatUserStats);
+  res.json({ success: true, users: usersList });
+});
+
+// 2. Get single user details with full bets & ledger
+app.get('/api/users/:id', (req, res) => {
+  const user = db.users[req.params.id];
+  if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+  const userBets = db.userBets.filter(b => b.userId === user.id).slice(0, 50);
+  const userLedger = db.walletLedger.filter(l => l.userId === user.id).slice(0, 50);
+
+  res.json({
+    success: true,
+    user: formatUserStats(user),
+    bets: userBets,
+    ledger: userLedger
+  });
+});
+
+// 3. Create new user
+app.post('/api/users', (req, res) => {
+  const { name, mobile, initialBalance = 1000 } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Name is required' });
+  }
+
+  const userId = 'user_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+  const balance = Math.max(0, parseFloat(initialBalance) || 0);
+
+  const newUser = {
+    id: userId,
+    name: name.trim(),
+    mobile: mobile ? mobile.trim() : '+91 9' + Math.floor(100000000 + Math.random() * 900000000),
+    balance: balance,
+    status: 'active',
+    createdAt: new Date().toISOString()
+  };
+
+  db.users[userId] = newUser;
+
+  if (balance > 0) {
+    db.walletLedger.unshift({
+      id: uuidv4(),
+      userId: newUser.id,
+      type: 'DEMO_CREDIT',
+      amount: balance,
+      referenceId: 'WELCOME_' + Date.now(),
+      description: `Welcome Initial Demo Balance +₹${balance}`,
+      balanceAfter: balance,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  broadcast({
+    type: 'USERS_UPDATED',
+    users: Object.values(db.users).map(formatUserStats)
+  });
+
+  res.json({ success: true, user: formatUserStats(newUser) });
+});
+
+// 4. Update user info (name, mobile, status)
+app.put('/api/users/:id', (req, res) => {
+  const user = db.users[req.params.id];
+  if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+  const { name, mobile, status } = req.body;
+  if (name) user.name = name.trim();
+  if (mobile) user.mobile = mobile.trim();
+  if (status && ['active', 'frozen'].includes(status)) user.status = status;
+
+  broadcast({
+    type: 'USER_UPDATED',
+    user: formatUserStats(user)
+  });
+
+  res.json({ success: true, user: formatUserStats(user) });
+});
+
+// 5. Toggle or set user status (Freeze / Unfreeze)
+app.post('/api/users/:id/status', (req, res) => {
+  const user = db.users[req.params.id];
+  if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+  const { status } = req.body;
+  if (status) {
+    user.status = status;
+  } else {
+    user.status = user.status === 'active' ? 'frozen' : 'active';
+  }
+
+  broadcast({
+    type: 'USER_UPDATED',
+    user: formatUserStats(user)
+  });
+
+  res.json({ success: true, user: formatUserStats(user) });
+});
+
+// 6. Delete user
+app.delete('/api/users/:id', (req, res) => {
+  const userId = req.params.id;
+  if (userId === 'demo_user') {
+    return res.status(400).json({ success: false, error: 'Cannot delete the primary demo user' });
+  }
+
+  if (!db.users[userId]) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  delete db.users[userId];
+
+  broadcast({
+    type: 'USERS_UPDATED',
+    users: Object.values(db.users).map(formatUserStats)
+  });
+
+  res.json({ success: true, message: 'User deleted successfully' });
 });
 
 // Admin: Get live exposure simulation for current round
@@ -758,7 +927,65 @@ app.post('/api/admin/speed-timer', (req, res) => {
   res.json({ success: true, remainingSeconds: game.remainingSeconds });
 });
 
-// Admin: Adjust user balance directly
+// Admin: Dedicated route to serve admin page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Admin: Adjust user balance by user ID
+app.post('/api/users/:id/adjust-balance', (req, res) => {
+  const user = db.users[req.params.id];
+  if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+  const { action = 'set', amount = 0, reason = 'Admin Balance Adjustment' } = req.body;
+  const numAmount = parseFloat(amount);
+  if (isNaN(numAmount) || numAmount < 0) {
+    return res.status(400).json({ success: false, error: 'Invalid amount' });
+  }
+
+  let oldBal = user.balance;
+  let newBal = oldBal;
+  let ledgerType = 'DEMO_CREDIT';
+  let diff = 0;
+
+  if (action === 'credit') {
+    newBal = Math.round((oldBal + numAmount) * 100) / 100;
+    diff = numAmount;
+    ledgerType = 'DEMO_CREDIT';
+  } else if (action === 'debit') {
+    newBal = Math.max(0, Math.round((oldBal - numAmount) * 100) / 100);
+    diff = -(oldBal - newBal);
+    ledgerType = 'ADMIN_DEBIT';
+  } else {
+    // set exact
+    newBal = Math.max(0, Math.round(numAmount * 100) / 100);
+    diff = Math.round((newBal - oldBal) * 100) / 100;
+    ledgerType = diff >= 0 ? 'DEMO_CREDIT' : 'REVERSAL';
+  }
+
+  user.balance = newBal;
+
+  db.walletLedger.unshift({
+    id: uuidv4(),
+    userId: user.id,
+    type: ledgerType,
+    amount: diff,
+    referenceId: 'ADMIN_ADJ_' + Date.now(),
+    description: `${reason} (${diff >= 0 ? '+' : ''}₹${diff})`,
+    balanceAfter: user.balance,
+    createdAt: new Date().toISOString()
+  });
+
+  const formatted = formatUserStats(user);
+  broadcast({
+    type: 'USER_UPDATED',
+    user: formatted
+  });
+
+  res.json({ success: true, user: formatted });
+});
+
+// Admin: Adjust user balance directly (legacy endpoint)
 app.post('/api/admin/adjust-balance', (req, res) => {
   const { userId = 'demo_user', newBalance, reason = 'Admin Balance Adjustment' } = req.body;
   const user = db.users[userId];
@@ -779,12 +1006,13 @@ app.post('/api/admin/adjust-balance', (req, res) => {
     createdAt: new Date().toISOString()
   });
 
+  const formatted = formatUserStats(user);
   broadcast({
     type: 'USER_UPDATED',
-    user
+    user: formatted
   });
 
-  res.json({ success: true, user });
+  res.json({ success: true, user: formatted });
 });
 
 // Admin: Get Audit logs

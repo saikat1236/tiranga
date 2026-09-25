@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiranga Pro - Master Admin Console & User Management</title>
+  <meta name="description" content="Dedicated Master Admin Dashboard for Tiranga Colour Prediction: Live Round Controls, Manual Outcome Override, Risk Matrix, Multi-User Management, and Settlement Audit.">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-body">
+
+  <!-- Top Admin Navigation Header -->
+  <header class="admin-top-header">
+    <div class="admin-brand-wrap">
+      <div class="admin-brand-icon">⚙️</div>
+      <div class="admin-brand-text">
+        <div class="admin-brand-title">
+          TIRANGA <span>ADMIN CONSOLE</span>
+          <span class="admin-env-badge">MASTER</span>
+        </div>
+        <div class="admin-system-stat">
+          <span class="status-indicator-dot"></span>
+          <span id="admin-ws-status">System Live & Connected</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Navigation Tabs -->
+    <nav class="admin-nav-tabs">
+      <button class="admin-nav-tab active" data-tab="control">
+        <span>🎮</span> Live Controls
+      </button>
+      <button class="admin-nav-tab" data-tab="exposure">
+        <span>📊</span> Risk Matrix
+      </button>
+      <button class="admin-nav-tab" data-tab="users">
+        <span>👥</span> User Management
+      </button>
+      <button class="admin-nav-tab" data-tab="audit">
+        <span>📜</span> Audit History
+      </button>
+    </nav>
+
+    <!-- Top Admin Header Right -->
+    <div class="admin-top-actions">
+      <a href="/" target="_blank" class="btn btn-secondary admin-btn-player-link" title="Open Player Web Application">
+        <span>📱</span> Player App ↗
+      </a>
+      <button class="icon-btn" id="btn-admin-global-refresh" title="Refresh All Data">🔄</button>
+    </div>
+  </header>
+
+  <!-- Admin Main Workspace Content -->
+  <main class="admin-workspace">
+
+    <!-- Top Live Game Status Strip -->
+    <div class="admin-live-strip">
+      <div class="live-strip-item">
+        <span class="live-strip-label">Active Game Mode</span>
+        <select id="admin-game-select" class="form-input form-input-sm">
+          <option value="wingo_30">Win Go 30s</option>
+          <option value="wingo_60" selected>Win Go 1Min</option>
+          <option value="wingo_180">Win Go 3Min</option>
+          <option value="wingo_300">Win Go 5Min</option>
+        </select>
+      </div>
+
+      <div class="live-strip-item">
+        <span class="live-strip-label">Current Period</span>
+        <span class="live-strip-val" id="admin-live-period">--</span>
+      </div>
+
+      <div class="live-strip-item">
+        <span class="live-strip-label">Round Countdown</span>
+        <span class="live-strip-val timer-val" id="admin-live-timer">00:00</span>
+      </div>
+
+      <div class="live-strip-item">
+        <span class="live-strip-label">Bets In Round</span>
+        <span class="live-strip-val" id="admin-live-bets-count">0</span>
+      </div>
+
+      <div class="live-strip-actions">
+        <button class="btn btn-secondary btn-sm" id="btn-admin-speed-timer" title="Accelerate round timer to 5s remaining">
+          ⏩ Fast Forward (5s)
+        </button>
+        <button class="btn btn-danger btn-sm" id="btn-admin-force-settle" title="Settle round immediately">
+          ⚡ Force Settle Now
+        </button>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 1: LIVE GAME OUTPUT CONTROLLER                       -->
+    <!-- ======================================================== -->
+    <section class="admin-tab-pane active" id="pane-control">
+
+      <!-- Output Determination Mode Card -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>🎯</span> Outcome Determination & Mode Selector
+          </div>
+          <span style="font-size:0.8rem;color:var(--text-muted);">
+            Real-time algorithm controller for round outcome
+          </span>
+        </div>
+
+        <!-- 4 Operational Modes -->
+        <div class="mode-pills-grid">
+          <button class="mode-pill-btn active" data-mode="manual">
+            <span class="mode-pill-title">🎯 Manual Override</span>
+            <span class="mode-pill-desc">You choose the exact next winning number (0-9) directly.</span>
+          </button>
+          <button class="mode-pill-btn min-payout" data-mode="min_payout">
+            <span class="mode-pill-title">🛡️ House Advantage (Min Payout)</span>
+            <span class="mode-pill-desc">Auto-picks outcome paying lowest total money to players.</span>
+          </button>
+          <button class="mode-pill-btn" data-mode="random">
+            <span class="mode-pill-title">🎲 Fair Random</span>
+            <span class="mode-pill-desc">Cryptographically secure server random number generator.</span>
+          </button>
+          <button class="mode-pill-btn" data-mode="max_payout">
+            <span class="mode-pill-title">🎁 Promotional (Max Payout)</span>
+            <span class="mode-pill-desc">Auto-picks outcome with maximum payout for players.</span>
+          </button>
+        </div>
+
+        <!-- Interactive Direct Outcome Override Keypad -->
+        <div class="override-container">
+          <div class="override-status-bar" id="active-override-status-box">
+            <div class="active-override-label" id="active-override-label">
+              🎯 <strong>Next Forced Outcome:</strong> Click any number below to guarantee it wins!
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-clear-override">
+              Clear Override
+            </button>
+          </div>
+
+          <!-- Numbers 0-9 Keypad -->
+          <div class="override-number-keypad">
+            <button class="override-key-btn num-ball-0" data-num="0">
+              <span>0</span>
+              <span class="override-key-sub">Red/Vio</span>
+            </button>
+            <button class="override-key-btn num-ball-1" data-num="1">
+              <span>1</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+            <button class="override-key-btn num-ball-2" data-num="2">
+              <span>2</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-3" data-num="3">
+              <span>3</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+            <button class="override-key-btn num-ball-4" data-num="4">
+              <span>4</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-5" data-num="5">
+              <span>5</span>
+              <span class="override-key-sub">Grn/Vio</span>
+            </button>
+            <button class="override-key-btn num-ball-6" data-num="6">
+              <span>6</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-7 selected" data-num="7">
+              <span>7</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+            <button class="override-key-btn num-ball-8" data-num="8">
+              <span>8</span>
+              <span class="override-key-sub">Red</span>
+            </button>
+            <button class="override-key-btn num-ball-9" data-num="9">
+              <span>9</span>
+              <span class="override-key-sub">Green</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Exposure Overview on Control Tab -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>📊</span> Live Round Exposure Preview
+          </div>
+          <div style="font-size:0.85rem;font-family:var(--font-mono);">
+            Total Wagered: <strong id="admin-total-wagered-preview" style="color:var(--color-gold);">₹0.00</strong>
+          </div>
+        </div>
+        <div id="admin-options-breakdown-preview" style="margin-bottom:12px;"></div>
+        <div class="exposure-table-wrap">
+          <table class="exposure-table">
+            <thead>
+              <tr>
+                <th>Outcome Number</th>
+                <th>Attributes</th>
+                <th>Player Payout</th>
+                <th>House Net Profit / Margin</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="exposure-table-body-preview">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 2: FULL RISK & EXPOSURE MATRIX                       -->
+    <!-- ======================================================== -->
+    <section class="admin-tab-pane" id="pane-exposure">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>📊</span> Full Risk Exposure & Profitability Matrix
+          </div>
+          <div style="font-size:0.85rem;font-family:var(--font-mono);">
+            Total Active Pool: <strong id="admin-total-wagered" style="color:var(--color-gold);">₹0.00</strong>
+          </div>
+        </div>
+
+        <div id="admin-options-breakdown" style="margin-bottom:16px;"></div>
+
+        <div class="exposure-table-wrap">
+          <table class="exposure-table">
+            <thead>
+              <tr>
+                <th>Outcome Number</th>
+                <th>Attributes</th>
+                <th>Player Payout</th>
+                <th>House Net Profit / Margin</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="exposure-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 3: USER MANAGEMENT & MULTI-ACCOUNT CENTER            -->
+    <!-- ======================================================== -->
+    <section class="admin-tab-pane" id="pane-users">
+      
+      <!-- Users Top Control Bar -->
+      <div class="admin-card">
+        <div class="user-mgmt-header-bar">
+          <div class="user-mgmt-title-group">
+            <div class="admin-card-title">
+              <span>👥</span> User Management & Account Controls
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Manage multi-user profiles, balances, freezes, and transactions
+            </div>
+          </div>
+
+          <div class="user-mgmt-actions">
+            <!-- Search bar -->
+            <div class="search-input-wrap">
+              <input type="text" id="user-search-input" class="form-input form-input-sm" placeholder="🔍 Search by name, mobile, ID...">
+            </div>
+
+            <!-- Filter Status -->
+            <select id="user-status-filter" class="form-input form-input-sm" style="width:130px;">
+              <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="frozen">Frozen Only</option>
+            </select>
+
+            <!-- Add User Button -->
+            <button class="btn btn-primary btn-sm" id="btn-open-create-user">
+              + Add New User
+            </button>
+          </div>
+        </div>
+
+        <!-- Users Summary Counters -->
+        <div class="user-stats-summary-row">
+          <div class="stat-box">
+            <span class="stat-label">Total Users</span>
+            <span class="stat-value" id="stat-total-users">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Active Users</span>
+            <span class="stat-value text-green" id="stat-active-users">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Frozen Users</span>
+            <span class="stat-value text-red" id="stat-frozen-users">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Total Player Funds</span>
+            <span class="stat-value text-gold" id="stat-total-balance">₹0.00</span>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="exposure-table-wrap" style="margin-top:16px;">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>User Details</th>
+                <th>Status</th>
+                <th>Wallet Balance</th>
+                <th>Bet Stats</th>
+                <th>Net Profit / Loss</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 4: SETTLEMENT AUDIT LOGS                             -->
+    <!-- ======================================================== -->
+    <section class="admin-tab-pane" id="pane-audit">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>📜</span> Settlement Audit Log & Historical Archive
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btn-export-audit">
+            📥 Refresh Logs
+          </button>
+        </div>
+
+        <div class="exposure-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Winner</th>
+                <th>Determination Method</th>
+                <th>Total Bets</th>
+                <th>Payout</th>
+                <th>House Profit</th>
+                <th>Settled Time</th>
+              </tr>
+            </thead>
+            <tbody id="audit-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================================================== -->
+  <!--                      ADMIN MODALS                        -->
+  <!-- ======================================================== -->
+
+  <!-- Modal 1: Create New User -->
+  <div class="modal-overlay" id="create-user-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Create New Player Profile</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Full Name / Display Nickname *</label>
+          <input type="text" id="create-user-name" class="form-input" placeholder="e.g. Ramesh Varma" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mobile Number</label>
+          <input type="text" id="create-user-mobile" class="form-input" placeholder="+91 98765 00000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Initial Demo Credits (₹)</label>
+          <input type="number" id="create-user-balance" class="form-input" value="5000" min="0" step="100">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-create-user">Create User Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Adjust Balance (Credit / Debit / Set) -->
+  <div class="modal-overlay" id="adjust-balance-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Adjust Player Balance</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="adjust-user-id">
+        <div style="margin-bottom:12px;">
+          <span style="font-size:0.85rem;color:var(--text-muted);">Adjusting Wallet For:</span>
+          <div style="font-weight:700;font-size:1.05rem;" id="adjust-user-name">Player Name</div>
+          <div style="font-size:0.85rem;font-family:var(--font-mono);color:var(--color-gold);" id="adjust-user-current-bal">Current: ₹0.00</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Action Type</label>
+          <div class="action-type-pill-group">
+            <button class="action-type-pill active" data-action="credit">➕ Deposit / Credit</button>
+            <button class="action-type-pill" data-action="debit">➖ Withdraw / Debit</button>
+            <button class="action-type-pill" data-action="set">🎯 Set Exact Balance</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Amount (₹)</label>
+          <input type="number" id="adjust-balance-val" class="form-input" min="0" step="10" placeholder="Enter amount">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Reason / Audit Reference</label>
+          <input type="text" id="adjust-balance-reason" class="form-input" value="Admin Manual Adjustment" placeholder="Reason for transaction">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-adjust-bal">Execute Adjustment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Full User Inspection & Ledger Drawer -->
+  <div class="modal-overlay" id="user-drawer-modal">
+    <div class="modal-card user-drawer-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>👤 User Audit & History: </span><span id="drawer-user-title">User</span>
+        </div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height:75vh;overflow-y:auto;">
+        <!-- User Meta Box -->
+        <div class="drawer-user-meta" id="drawer-user-meta-box">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Drawer Sub Tabs -->
+        <div class="drawer-subtabs" style="display:flex;gap:8px;margin:16px 0 12px 0;">
+          <button class="btn btn-secondary btn-sm drawer-tab-btn active" data-drawertab="bets">📜 Prediction Bets</button>
+          <button class="btn btn-secondary btn-sm drawer-tab-btn" data-drawertab="ledger">👛 Wallet Ledger</button>
+        </div>
+
+        <!-- Drawer Content Tables -->
+        <div id="drawer-bets-view" class="exposure-table-wrap">
+          <table class="record-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Game</th>
+                <th>Option</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Payout</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="drawer-bets-tbody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="drawer-ledger-view" class="exposure-table-wrap" style="display:none;">
+          <table class="record-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Change</th>
+                <th>Balance After</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="drawer-ledger-tbody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/js/sound.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

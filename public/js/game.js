@@ -147,6 +147,43 @@ class GameController {
         }
       });
     }
+
+    // Account Switcher Triggers
+    const openUserSwitcherBtn = document.getElementById('btn-open-user-switcher');
+    if (openUserSwitcherBtn) {
+      openUserSwitcherBtn.addEventListener('click', () => {
+        this.openUserSwitcher();
+      });
+    }
+
+    const heroSwitchUserBtn = document.getElementById('btn-hero-switch-user');
+    if (heroSwitchUserBtn) {
+      heroSwitchUserBtn.addEventListener('click', () => {
+        this.openUserSwitcher();
+      });
+    }
+
+    const quickCreateBtn = document.getElementById('btn-quick-create-user');
+    if (quickCreateBtn) {
+      quickCreateBtn.addEventListener('click', async () => {
+        const input = document.getElementById('quick-create-name');
+        const name = input ? input.value.trim() : '';
+        if (!name) {
+          window.showToast('Please enter a player name', 'error');
+          return;
+        }
+        try {
+          const res = await window.api.createUser({ name, initialBalance: 5000 });
+          if (res.success) {
+            window.showToast(`Player account "${name}" created with ₹5,000 demo credits!`, 'success');
+            if (input) input.value = '';
+            await this.switchUser(res.user.id);
+          }
+        } catch (e) {
+          window.showToast('Failed to create account', 'error');
+        }
+      });
+    }
   }
 
   switchGameMode(gameKey) {
@@ -218,14 +255,104 @@ class GameController {
   }
 
   renderUserState(user) {
+    if (!user) return;
     this.userState = user;
     const balFormatted = `₹${parseFloat(user.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const walletPill = document.getElementById('header-wallet-balance');
     const heroBal = document.getElementById('hero-wallet-balance');
+    const avatarEl = document.getElementById('header-user-avatar');
+    const nameEl = document.getElementById('header-user-name');
+    const heroIdEl = document.getElementById('player-user-id');
+    const frozenBanner = document.getElementById('frozen-account-banner');
 
     if (walletPill) walletPill.textContent = balFormatted;
     if (heroBal) heroBal.textContent = balFormatted;
+    if (avatarEl) avatarEl.textContent = (user.name || 'P')[0].toUpperCase();
+    if (nameEl) nameEl.textContent = user.name || user.id;
+    if (heroIdEl) heroIdEl.textContent = user.name || user.id;
+
+    if (frozenBanner) {
+      frozenBanner.style.display = user.status === 'frozen' ? 'flex' : 'none';
+    }
+  }
+
+  async openUserSwitcher() {
+    const modal = document.getElementById('switch-user-modal');
+    if (modal) {
+      modal.classList.add('open');
+      await this.loadUserAccounts();
+    }
+  }
+
+  async loadUserAccounts() {
+    const container = document.getElementById('player-accounts-list');
+    if (!container) return;
+
+    container.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text-muted);font-size:0.85rem;">Loading accounts...</div>';
+
+    try {
+      const res = await window.api.getUsers();
+      if (res.success && res.users) {
+        const activeUserId = window.api.userId;
+
+        container.innerHTML = res.users.map(u => {
+          const isActive = u.id === activeUserId;
+          const isFrozen = u.status === 'frozen';
+          const avatarChar = (u.name || 'P')[0].toUpperCase();
+
+          return `
+            <div class="player-account-item ${isActive ? 'active' : ''} ${isFrozen ? 'frozen' : ''}" onclick="window.gameCtrl.switchUser('${u.id}')">
+              <div class="account-item-left">
+                <div class="user-avatar-badge ${isFrozen ? 'frozen' : ''}" style="width:34px;height:34px;font-size:0.85rem;">
+                  ${avatarChar}
+                </div>
+                <div>
+                  <div style="font-weight:700;font-size:0.9rem;display:flex;align-items:center;gap:6px;">
+                    ${u.name}
+                    ${isFrozen ? '<span class="status-pill frozen" style="font-size:0.65rem;">❄️ Frozen</span>' : ''}
+                  </div>
+                  <div style="font-size:0.75rem;color:var(--text-dim);font-family:var(--font-mono);">${u.mobile || u.id}</div>
+                </div>
+              </div>
+              <div class="account-item-right">
+                <div style="font-family:var(--font-mono);font-weight:700;font-size:0.92rem;color:var(--color-gold);">
+                  ₹${(u.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                ${isActive ? 
+                  '<span style="font-size:0.72rem;color:#10b981;font-weight:800;">✓ CURRENT</span>' : 
+                  '<button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.75rem;">Switch</button>'
+                }
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    } catch (e) {
+      container.innerHTML = '<div style="color:var(--color-red);text-align:center;padding:10px;">Failed to load accounts.</div>';
+    }
+  }
+
+  async switchUser(userId) {
+    try {
+      window.api.setUserId(userId);
+      const res = await window.api.getState();
+      if (res.success && res.user) {
+        this.renderUserState(res.user);
+        window.soundCtrl.playClick();
+        window.showToast(`Switched active player to: ${res.user.name}`, 'success');
+
+        // Dismiss modal
+        const modal = document.getElementById('switch-user-modal');
+        if (modal) modal.classList.remove('open');
+
+        // Refresh current active tab
+        if (this.activeTab === 'mybets') this.renderMyBets();
+        if (this.activeTab === 'ledger') this.renderLedger();
+      }
+    } catch (e) {
+      window.showToast('Failed to switch user account', 'error');
+    }
   }
 
   setFullState(data) {
@@ -313,6 +440,11 @@ class GameController {
   }
 
   async submitBet() {
+    if (this.userState && this.userState.status === 'frozen') {
+      window.showToast('Your account is frozen by Admin. Betting is restricted.', 'error');
+      return;
+    }
+
     const totalAmount = this.baseUnit * this.quantity * this.multiplier;
 
     if (!this.userState || this.userState.balance < totalAmount) {

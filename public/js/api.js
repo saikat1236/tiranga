@@ -5,7 +5,13 @@ class AppAPI {
     this.ws = null;
     this.listeners = new Map();
     this.reconnectAttempts = 0;
-    this.userId = 'demo_user';
+    this.userId = localStorage.getItem('tiranga_user_id') || 'demo_user';
+  }
+
+  setUserId(id) {
+    this.userId = id;
+    localStorage.setItem('tiranga_user_id', id);
+    this.emit('user_switched', id);
   }
 
   init() {
@@ -99,7 +105,65 @@ class AppAPI {
     return await res.json();
   }
 
-  // Admin APIs
+  // ==========================================
+  //            User Management APIs
+  // ==========================================
+  async getUsers() {
+    const res = await fetch('/api/users');
+    return await res.json();
+  }
+
+  async getUserDetails(userId) {
+    const res = await fetch(`/api/users/${userId}`);
+    return await res.json();
+  }
+
+  async createUser(userData) {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    });
+    return await res.json();
+  }
+
+  async updateUser(userId, data) {
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  }
+
+  async toggleUserStatus(userId, status) {
+    const res = await fetch(`/api/users/${userId}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    return await res.json();
+  }
+
+  async adjustUserBalanceAdvanced(userId, action, amount, reason) {
+    const res = await fetch(`/api/users/${userId}/adjust-balance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, amount, reason })
+    });
+    return await res.json();
+  }
+
+  async deleteUser(userId) {
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'DELETE'
+    });
+    return await res.json();
+  }
+
+  // ==========================================
+  //                Admin APIs
+  // ==========================================
   async getAdminExposure(gameKey) {
     const res = await fetch(`/api/admin/exposure?gameKey=${gameKey}`);
     return await res.json();

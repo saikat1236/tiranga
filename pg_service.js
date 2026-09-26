@@ -51,6 +51,21 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle PostgreSQL client', err);
 });
 
+// Resilient query wrapper with automatic exponential backoff retry for transient network drops
+async function safeQuery(text, params = [], retries = 2) {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    try {
+      return await pool.query(text, params);
+    } catch (err) {
+      if (attempt <= retries) {
+        await new Promise(r => setTimeout(r, 600 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // In-Memory Fast Cache for real-time 1s game ticks & sub-millisecond responses
 const cache = {
   users: new Map(), // userId -> user
@@ -391,8 +406,8 @@ const DBService = {
     // Update in-memory cache instantly
     cache.users.set(userId, newUser);
 
-    // Asynchronous write to Supabase PostgreSQL
-    pool.query(`
+    // Asynchronous write to Supabase PostgreSQL with auto-retry
+    safeQuery(`
       INSERT INTO users (id, mobile, username, password_hash, name, balance, status, role, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [userId, cleanMobile, cleanUsername, hash, cleanName, balance, 'active', role, now, now])
@@ -412,7 +427,7 @@ const DBService = {
       };
       cache.ledger.unshift(ledgerItem);
 
-      pool.query(`
+      safeQuery(`
         INSERT INTO wallet_ledger (id, user_id, type, amount, reference_id, description, balance_after, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [ledgerId, userId, 'WELCOME_BONUS', balance, 'REGISTRATION', `Welcome Signup Bonus +₹${balance}`, balance, now])
@@ -442,7 +457,7 @@ const DBService = {
     user.status = newStatus;
     user.updated_at = now;
 
-    pool.query(`
+    safeQuery(`
       UPDATE users SET name = $1, mobile = $2, status = $3, updated_at = $4
       WHERE id = $5
     `, [newName, cleanMobile, newStatus, now, userId])
@@ -458,7 +473,7 @@ const DBService = {
     user.status = status;
     user.updated_at = now;
 
-    pool.query('UPDATE users SET status = $1, updated_at = $2 WHERE id = $3', [status, now, userId])
+    safeQuery('UPDATE users SET status = $1, updated_at = $2 WHERE id = $3', [status, now, userId])
     .catch(err => console.error('Failed to update user status in PostgreSQL:', err));
 
     return user;
@@ -472,7 +487,7 @@ const DBService = {
     user.balance = cleanBal;
     user.updated_at = now;
 
-    pool.query('UPDATE users SET balance = $1, updated_at = $2 WHERE id = $3', [cleanBal, now, userId])
+    safeQuery('UPDATE users SET balance = $1, updated_at = $2 WHERE id = $3', [cleanBal, now, userId])
     .catch(err => console.error('Failed to update user balance in PostgreSQL:', err));
 
     return cleanBal;
@@ -483,7 +498,7 @@ const DBService = {
     cache.bets = cache.bets.filter(b => b.userId !== userId && b.user_id !== userId);
     cache.ledger = cache.ledger.filter(l => l.userId !== userId && l.user_id !== userId);
 
-    pool.query('DELETE FROM users WHERE id = $1', [userId])
+    safeQuery('DELETE FROM users WHERE id = $1', [userId])
     .catch(err => console.error('Failed to delete user from PostgreSQL:', err));
   },
 
@@ -508,7 +523,7 @@ const DBService = {
 
     cache.ledger.unshift(item);
 
-    pool.query(`
+    safeQuery(`
       INSERT INTO wallet_ledger (id, user_id, type, amount, reference_id, description, balance_after, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [id, entry.userId, entry.type, entry.amount, entry.referenceId || null, entry.description || '', entry.balanceAfter, now])
@@ -546,7 +561,7 @@ const DBService = {
 
     cache.bets.unshift(item);
 
-    pool.query(`
+    safeQuery(`
       INSERT INTO bets (id, user_id, game_key, period_id, option, amount, status, payout, placed_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [bet.id, bet.userId, bet.gameKey, bet.periodId, bet.option, bet.amount, bet.status || 'PENDING', bet.payout || 0, now])
@@ -569,7 +584,7 @@ const DBService = {
       bet.settled_at = now;
     }
 
-    pool.query(`
+    safeQuery(`
       UPDATE bets SET status = $1, payout = $2, winning_number = $3, winning_color = $4, winning_size = $5, settled_at = $6
       WHERE id = $7
     `, [status, payout, winningNumber, winningColor, winningSize, now, betId])
@@ -616,7 +631,7 @@ const DBService = {
     cache.history[key].unshift(historyItem);
     if (cache.history[key].length > 200) cache.history[key].pop();
 
-    pool.query(`
+    safeQuery(`
       INSERT INTO game_history (id, game_key, period_id, number, color, colors, size, total_bets, total_payout, house_profit, mode, settled_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [id, key, historyItem.periodId, item.number, item.color, colorsJson, item.size, historyItem.totalBets, historyItem.totalPayout, historyItem.houseProfit, historyItem.mode, now])
@@ -656,7 +671,7 @@ const DBService = {
     cache.auditLogs.unshift(item);
     if (cache.auditLogs.length > 200) cache.auditLogs.pop();
 
-    pool.query(`
+    safeQuery(`
       INSERT INTO audit_logs (id, game_key, period_id, winning_number, color, size, total_wagered, total_payout, house_profit, determination_method, bets_count, timestamp)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [id, item.gameKey, item.periodId, item.winningNumber, item.color, item.size, item.totalWagered, item.totalPayout, item.houseProfit, item.determinationMethod, item.betsCount, now])
@@ -715,7 +730,7 @@ const DBService = {
       ? parseInt(cache.settings[gameKey].manualOverrideNumber, 10)
       : null;
 
-    return pool.query(`
+    return safeQuery(`
       INSERT INTO game_settings (game_key, control_mode, manual_override_number, updated_at)
       VALUES ($1, $2, $3, NOW())
       ON CONFLICT (game_key) DO UPDATE

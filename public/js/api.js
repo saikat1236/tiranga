@@ -23,6 +23,9 @@ class AppAPI {
     this.currentUser = user;
     if (token) {
       localStorage.setItem('tiranga_token', token);
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'AUTH', token }));
+      }
     } else {
       localStorage.removeItem('tiranga_token');
     }
@@ -56,6 +59,9 @@ class AppAPI {
       this.ws.onopen = () => {
         console.log('✅ Connected to game server WebSocket');
         this.reconnectAttempts = 0;
+        if (this.token) {
+          this.ws.send(JSON.stringify({ type: 'AUTH', token: this.token }));
+        }
         this.emit('connected');
       };
 

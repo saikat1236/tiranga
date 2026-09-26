@@ -47,10 +47,7 @@
         <button class="quick-add-btn" id="btn-open-recharge" title="Recharge Demo Credits">+</button>
       </div>
 
-      <!-- Admin Console Link -->
-      <a href="/admin" target="_blank" class="admin-portal-link" title="Open Master Admin Console">
-        <span>⚙️</span> <span class="admin-link-text">Admin Panel</span>
-      </a>
+
 
       <!-- Sound Mute Toggle -->
       <button class="icon-btn" id="btn-sound-toggle" title="Toggle Sound">🔊</button>
@@ -76,8 +73,8 @@
           <span class="wallet-hero-title">
             <span>👛</span> Demo Wallet
           </span>
-          <button class="switch-user-link-btn" id="btn-hero-switch-user" title="Change Player">
-            <span id="player-user-id">Player 8892</span> 🔄
+        <button class="switch-user-link-btn" id="btn-hero-switch-user" title="Player Info">
+            <span id="player-user-id">Player</span>
           </button>
         </div>
         <div class="wallet-balance-row">
@@ -313,23 +310,6 @@
           <button type="submit" class="btn btn-primary" id="btn-submit-login" style="width:100%;padding:12px;font-size:0.95rem;margin-top:6px;">
             Log In to Play
           </button>
-
-          <!-- Fast 1-Click Demo Accounts Row -->
-          <div class="demo-chips-title">⚡ Instant 1-Click Demo Logins:</div>
-          <div class="demo-chips-container" id="auth-demo-chips">
-            <button type="button" class="demo-account-chip" data-login="9876543210" data-pass="password123">
-              <span>👤 Player 8892</span> <span class="chip-bal">₹5,000</span>
-            </button>
-            <button type="button" class="demo-account-chip" data-login="9811122334" data-pass="password123">
-              <span>👤 Rahul</span> <span class="chip-bal">₹2,850</span>
-            </button>
-            <button type="button" class="demo-account-chip" data-login="9722233445" data-pass="password123">
-              <span>👤 Priya</span> <span class="chip-bal">₹14,200</span>
-            </button>
-            <button type="button" class="demo-account-chip" data-login="9999988888" data-pass="password123">
-              <span>👑 Vikram VIP</span> <span class="chip-bal">₹58,000</span>
-            </button>
-          </div>
         </form>
 
         <!-- FORM 2: REGISTER / SIGN UP -->
@@ -433,37 +413,7 @@
     </div>
   </div>
 
-  <!-- Modal: Switch Player Account -->
-  <div class="modal-overlay" id="switch-user-modal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Switch Player Account</div>
-        <button class="modal-close-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
-          Select any player profile below to simulate gameplay, view their individual wallet balance, and review their betting history:
-        </p>
 
-        <!-- List of available accounts -->
-        <div class="player-accounts-list" id="player-accounts-list">
-          <!-- Populated dynamically -->
-        </div>
-
-        <!-- Quick Create Player Option -->
-        <div style="border-top:1px solid var(--border-light);margin-top:14px;padding-top:12px;">
-          <div style="font-size:0.85rem;font-weight:700;margin-bottom:6px;">Create New Player Account</div>
-          <div style="display:flex;gap:8px;">
-            <input type="text" id="quick-create-name" class="form-input" placeholder="Player name (e.g. Anand R)" style="flex:1;">
-            <button class="btn btn-primary" id="btn-quick-create-user" style="padding:8px 14px;font-size:0.85rem;">+ Add</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary modal-close-btn">Close</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Modal: Betting Drawer -->
   <div class="modal-overlay" id="bet-drawer-modal">
@@ -651,10 +601,6 @@
       <span class="nav-icon">👤</span>
       <span>Account</span>
     </button>
-    <a href="/admin" target="_blank" class="mobile-nav-item admin-mob-link">
-      <span class="nav-icon">⚙️</span>
-      <span>Admin</span>
-    </a>
   </nav>
 
   <!-- Toast Container -->

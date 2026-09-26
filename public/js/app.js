@@ -37,6 +37,12 @@ class MainApp {
       }
     });
 
+    window.api.on('USER_STATE', (data) => {
+      if (data.user && (!window.api.userId || data.user.id === window.api.userId)) {
+        window.gameCtrl.renderUserState(data.user);
+      }
+    });
+
     // Initialize Game Sub-controller
     window.gameCtrl.init();
 
@@ -105,6 +111,9 @@ class MainApp {
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const modal = e.target.closest('.modal-overlay');
+        if (modal && modal.id === 'auth-modal' && (!window.gameCtrl || !window.gameCtrl.isAuthenticated)) {
+          return;
+        }
         if (modal) modal.classList.remove('open');
       });
     });
@@ -113,6 +122,9 @@ class MainApp {
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
       overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
+          if (overlay.id === 'auth-modal' && (!window.gameCtrl || !window.gameCtrl.isAuthenticated)) {
+            return;
+          }
           overlay.classList.remove('open');
         }
       });

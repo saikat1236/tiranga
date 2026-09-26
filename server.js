@@ -12,7 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'tiranga_jwt_secret_2026_super_key';
 
 app.use(express.json());
@@ -50,6 +50,25 @@ function authMiddleware(req, res, next) {
     } catch (e) {
       // Token invalid or expired - proceed as unauthenticated
     }
+  }
+  next();
+}
+
+// Require Authentication - blocks access for unauthenticated users
+function requireAuth(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
+  }
+  next();
+}
+
+// Require Admin Role
+function adminAuth(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'Admin access required.' });
   }
   next();
 }
@@ -410,6 +429,12 @@ function settleRound(gameKey) {
           description: `Win Payout on Period ${game.currentPeriod} (Option: ${s.option}, Winning Number: ${winningNumber})`,
           balanceAfter: newBal
         });
+
+        // Live sync updated user balance across WebSocket clients
+        broadcast({
+          type: 'USER_UPDATED',
+          user: DBService.formatUserStats(DBService.getUserById(user.id))
+        });
       }
     }
   });
@@ -522,19 +547,30 @@ function initGameLoop() {
 
 // WebSocket Connection Handler
 wss.on('connection', (ws) => {
-  const defaultUser = DBService.getUserById('demo_user') || DBService.getAllUsersWithStats()[0];
-
-  // Send initial full system state to newly connected client
+  // Send initial full system state to newly connected client (without forcing a default user)
   ws.send(JSON.stringify({
     type: 'INIT_STATE',
-    games: games,
-    user: DBService.formatUserStats(defaultUser)
+    games: games
   }));
 
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      if (data.type === 'PING') {
+      if (data.type === 'AUTH' && data.token) {
+        try {
+          const decoded = jwt.verify(data.token, JWT_SECRET);
+          const user = DBService.getUserById(decoded.userId);
+          if (user) {
+            ws.userId = user.id;
+            ws.send(JSON.stringify({
+              type: 'USER_STATE',
+              user: DBService.formatUserStats(user)
+            }));
+          }
+        } catch (e) {
+          // invalid token
+        }
+      } else if (data.type === 'PING') {
         ws.send(JSON.stringify({ type: 'PONG' }));
       }
     } catch (e) {
@@ -633,9 +669,8 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // 3. Get Current Authenticated User Profile
-app.get('/api/auth/me', (req, res) => {
-  const targetId = (req.user && req.user.id) || req.query.userId || 'demo_user';
-  const user = DBService.getUserById(targetId);
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  const user = DBService.getUserById(req.user.id);
 
   if (!user) {
     return res.status(404).json({ success: false, error: 'User not found' });
@@ -657,11 +692,10 @@ app.post('/api/auth/logout', (req, res) => {
 // ==========================================
 
 // 1. Get full state
-app.get('/api/state', (req, res) => {
-  const targetId = (req.user && req.user.id) || req.query.userId || 'demo_user';
-  let user = DBService.getUserById(targetId);
+app.get('/api/state', requireAuth, (req, res) => {
+  let user = DBService.getUserById(req.user.id);
   if (!user) {
-    user = DBService.getUserById('demo_user') || DBService.getAllUsersWithStats()[0];
+    return res.status(404).json({ success: false, error: 'User not found' });
   }
   
   res.json({
@@ -672,8 +706,8 @@ app.get('/api/state', (req, res) => {
 });
 
 // 2. Place Bet
-app.post('/api/bet', (req, res) => {
-  const userId = (req.user && req.user.id) || req.body.userId || 'demo_user';
+app.post('/api/bet', requireAuth, (req, res) => {
+  const userId = req.user.id;
   const { gameKey = 'wingo_60', option, amount } = req.body;
   const game = games[gameKey];
 
@@ -752,8 +786,8 @@ app.post('/api/bet', (req, res) => {
 });
 
 // 3. User Wallet Recharge
-app.post('/api/wallet/recharge', (req, res) => {
-  const userId = (req.user && req.user.id) || req.body.userId || 'demo_user';
+app.post('/api/wallet/recharge', requireAuth, (req, res) => {
+  const userId = req.user.id;
   const { amount = 1000 } = req.body;
   const user = DBService.getUserById(userId);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
@@ -783,8 +817,8 @@ app.post('/api/wallet/recharge', (req, res) => {
 });
 
 // 4. Get User Bet History
-app.get('/api/bets/my', (req, res) => {
-  const userId = (req.user && req.user.id) || req.query.userId || 'demo_user';
+app.get('/api/bets/my', requireAuth, (req, res) => {
+  const userId = req.user.id;
   const gameKey = req.query.gameKey;
   const bets = DBService.getUserBets(userId, gameKey, 50);
 
@@ -809,8 +843,8 @@ app.get('/api/bets/my', (req, res) => {
 });
 
 // 5. Get User Wallet Ledger
-app.get('/api/wallet/ledger', (req, res) => {
-  const userId = (req.user && req.user.id) || req.query.userId || 'demo_user';
+app.get('/api/wallet/ledger', requireAuth, (req, res) => {
+  const userId = req.user.id;
   const ledger = DBService.getUserLedger(userId, 50);
 
   res.json({
@@ -828,24 +862,154 @@ app.get('/api/wallet/ledger', (req, res) => {
   });
 });
 
+
 // ==========================================
-//           USER MANAGEMENT APIS
+//                ADMIN APIS
 // ==========================================
 
-// 1. Get all users
-app.get('/api/users', (req, res) => {
+// Admin: Get live exposure simulation for current round
+app.get('/api/admin/exposure', adminAuth, (req, res) => {
+  const gameKey = req.query.gameKey || 'wingo_60';
+  const exposure = calculateAdminExposure(gameKey);
+  res.json({ success: true, exposure });
+});
+
+// Admin: Set game control mode (random / manual / min_payout / max_payout)
+app.post('/api/admin/set-mode', adminAuth, (req, res) => {
+  const { gameKey = 'wingo_60', mode } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  if (!['random', 'manual', 'min_payout', 'max_payout'].includes(mode)) {
+    return res.status(400).json({ success: false, error: 'Invalid mode' });
+  }
+
+  game.controlMode = mode;
+  res.json({ success: true, mode: game.controlMode });
+});
+
+// Admin: Set exact winning number for next settlement (Manual Override)
+app.post('/api/admin/set-outcome', adminAuth, (req, res) => {
+  const { gameKey = 'wingo_60', winningNumber } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  const num = parseInt(winningNumber, 10);
+  if (isNaN(num) || num < 0 || num > 9) {
+    game.manualOverrideNumber = null;
+    return res.json({ success: true, manualOverrideNumber: null, message: 'Manual override cleared' });
+  }
+
+  game.manualOverrideNumber = num;
+  res.json({ success: true, manualOverrideNumber: num, message: `Next round forced to number ${num}` });
+});
+
+// Admin: Force immediate settlement of current period
+app.post('/api/admin/force-settle', adminAuth, (req, res) => {
+  const { gameKey = 'wingo_60' } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  settleRound(gameKey);
+  res.json({ success: true, message: 'Round settled immediately' });
+});
+
+// Admin: Speed up timer (sets remaining to 5 seconds to test lock and settle quickly)
+app.post('/api/admin/speed-timer', adminAuth, (req, res) => {
+  const { gameKey = 'wingo_60', seconds = 6 } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  game.remainingSeconds = Math.max(1, parseInt(seconds, 10));
+  res.json({ success: true, remainingSeconds: game.remainingSeconds });
+});
+
+// Admin: Dedicated route to serve admin page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Admin: Get Audit logs
+app.get('/api/admin/audit-logs', adminAuth, (req, res) => {
+  const logs = DBService.getAuditLogs(100);
+  res.json({ success: true, auditLogs: logs });
+});
+
+// Admin: Get ALL bets across all users
+app.get('/api/admin/all-bets', adminAuth, (req, res) => {
+  const bets = DBService.getAllBets(200);
+  res.json({ success: true, bets });
+});
+
+// Admin: Get ALL ledger/payment entries across all users
+app.get('/api/admin/all-ledger', adminAuth, (req, res) => {
+  const ledger = DBService.getAllLedger(200);
+  res.json({ success: true, ledger });
+});
+
+// Admin: Get dashboard stats
+app.get('/api/admin/dashboard-stats', adminAuth, (req, res) => {
+  const stats = DBService.getDashboardStats();
+  res.json({ success: true, stats });
+});
+
+// Admin: Login endpoint (separate from player login for clarity)
+app.post('/api/admin/login', (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, error: 'Username/mobile and password are required' });
+    }
+
+    const user = DBService.getUserByIdentifier(identifier);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Account not found' });
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Access denied. Admin credentials required.' });
+    }
+
+    const isValid = DBService.verifyPassword(user, String(password));
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Incorrect password' });
+    }
+
+    const token = generateToken(user);
+    res.json({
+      success: true,
+      message: 'Admin login successful',
+      token,
+      user: { id: user.id, name: user.name, role: user.role }
+    });
+  } catch (err) {
+    console.error('Admin login error:', err);
+    res.status(500).json({ success: false, error: 'Login failed' });
+  }
+});
+
+// Admin: Impersonate / Login as user to test player perspective
+app.post('/api/admin/login-as/:id', adminAuth, (req, res) => {
+  const user = DBService.getUserById(req.params.id);
+  if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+  const formatted = DBService.formatUserStats(user);
+  const token = generateToken(formatted);
+
+  res.json({
+    success: true,
+    token,
+    user: formatted
+  });
+});
+
+// Admin: User Management routes with admin auth
+app.get('/api/users', adminAuth, (req, res) => {
   const usersList = DBService.getAllUsersWithStats();
   res.json({ success: true, users: usersList });
 });
 
-// Admin compatibility route
-app.get('/api/admin/users', (req, res) => {
-  const usersList = DBService.getAllUsersWithStats();
-  res.json({ success: true, users: usersList });
-});
-
-// 2. Get single user details with full bets & ledger
-app.get('/api/users/:id', (req, res) => {
+app.get('/api/users/:id', adminAuth, (req, res) => {
   const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
@@ -860,14 +1024,13 @@ app.get('/api/users/:id', (req, res) => {
   });
 });
 
-// 3. Create new user (Admin)
-app.post('/api/users', (req, res) => {
+app.post('/api/users', adminAuth, (req, res) => {
   const { name, mobile, initialBalance = 1000, password = 'password123' } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, error: 'Name is required' });
   }
 
-  const cleanMobile = mobile ? String(mobile).replace(/\D/g, '').slice(-10) : '9' + Math.floor(100000000 + Math.random() * 900000000);
+  const cleanMobile = mobile ? String(mobile).replace(/\\D/g, '').slice(-10) : '9' + Math.floor(100000000 + Math.random() * 900000000);
   const balance = Math.max(0, parseFloat(initialBalance) || 0);
 
   const newUser = DBService.createUser({
@@ -885,8 +1048,7 @@ app.post('/api/users', (req, res) => {
   res.json({ success: true, user: newUser });
 });
 
-// 4. Update user info (name, mobile, status)
-app.put('/api/users/:id', (req, res) => {
+app.put('/api/users/:id', adminAuth, (req, res) => {
   const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
@@ -902,8 +1064,7 @@ app.put('/api/users/:id', (req, res) => {
   res.json({ success: true, user: formatted });
 });
 
-// 5. Toggle or set user status (Freeze / Unfreeze)
-app.post('/api/users/:id/status', (req, res) => {
+app.post('/api/users/:id/status', adminAuth, (req, res) => {
   const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
@@ -920,11 +1081,10 @@ app.post('/api/users/:id/status', (req, res) => {
   res.json({ success: true, user: formatted });
 });
 
-// 6. Delete user
-app.delete('/api/users/:id', (req, res) => {
+app.delete('/api/users/:id', adminAuth, (req, res) => {
   const userId = req.params.id;
-  if (userId === 'demo_user') {
-    return res.status(400).json({ success: false, error: 'Cannot delete the primary demo user' });
+  if (userId === 'demo_user' || userId === 'admin_master') {
+    return res.status(400).json({ success: false, error: 'Cannot delete this system account' });
   }
 
   const user = DBService.getUserById(userId);
@@ -942,8 +1102,7 @@ app.delete('/api/users/:id', (req, res) => {
   res.json({ success: true, message: 'User deleted successfully' });
 });
 
-// 7. Adjust user balance by user ID
-app.post('/api/users/:id/adjust-balance', (req, res) => {
+app.post('/api/users/:id/adjust-balance', adminAuth, (req, res) => {
   const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
@@ -967,7 +1126,6 @@ app.post('/api/users/:id/adjust-balance', (req, res) => {
     diff = -(oldBal - newBal);
     ledgerType = 'ADMIN_DEBIT';
   } else {
-    // set exact
     newBal = Math.max(0, Math.round(numAmount * 100) / 100);
     diff = Math.round((newBal - oldBal) * 100) / 100;
     ledgerType = diff >= 0 ? 'DEMO_CREDIT' : 'REVERSAL';
@@ -993,8 +1151,7 @@ app.post('/api/users/:id/adjust-balance', (req, res) => {
   res.json({ success: true, user: formatted });
 });
 
-// 8. Admin: Adjust user balance directly (legacy endpoint)
-app.post('/api/admin/adjust-balance', (req, res) => {
+app.post('/api/admin/adjust-balance', adminAuth, (req, res) => {
   const { userId = 'demo_user', newBalance, reason = 'Admin Balance Adjustment' } = req.body;
   const user = DBService.getUserById(userId);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
@@ -1020,78 +1177,6 @@ app.post('/api/admin/adjust-balance', (req, res) => {
   });
 
   res.json({ success: true, user: formatted });
-});
-
-// ==========================================
-//                ADMIN APIS
-// ==========================================
-
-// Admin: Get live exposure simulation for current round
-app.get('/api/admin/exposure', (req, res) => {
-  const gameKey = req.query.gameKey || 'wingo_60';
-  const exposure = calculateAdminExposure(gameKey);
-  res.json({ success: true, exposure });
-});
-
-// Admin: Set game control mode (random / manual / min_payout / max_payout)
-app.post('/api/admin/set-mode', (req, res) => {
-  const { gameKey = 'wingo_60', mode } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  if (!['random', 'manual', 'min_payout', 'max_payout'].includes(mode)) {
-    return res.status(400).json({ success: false, error: 'Invalid mode' });
-  }
-
-  game.controlMode = mode;
-  res.json({ success: true, mode: game.controlMode });
-});
-
-// Admin: Set exact winning number for next settlement (Manual Override)
-app.post('/api/admin/set-outcome', (req, res) => {
-  const { gameKey = 'wingo_60', winningNumber } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  const num = parseInt(winningNumber, 10);
-  if (isNaN(num) || num < 0 || num > 9) {
-    game.manualOverrideNumber = null;
-    return res.json({ success: true, manualOverrideNumber: null, message: 'Manual override cleared' });
-  }
-
-  game.manualOverrideNumber = num;
-  res.json({ success: true, manualOverrideNumber: num, message: `Next round forced to number ${num}` });
-});
-
-// Admin: Force immediate settlement of current period
-app.post('/api/admin/force-settle', (req, res) => {
-  const { gameKey = 'wingo_60' } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  settleRound(gameKey);
-  res.json({ success: true, message: 'Round settled immediately' });
-});
-
-// Admin: Speed up timer (sets remaining to 5 seconds to test lock and settle quickly)
-app.post('/api/admin/speed-timer', (req, res) => {
-  const { gameKey = 'wingo_60', seconds = 6 } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  game.remainingSeconds = Math.max(1, parseInt(seconds, 10));
-  res.json({ success: true, remainingSeconds: game.remainingSeconds });
-});
-
-// Admin: Dedicated route to serve admin page
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// Admin: Get Audit logs
-app.get('/api/admin/audit-logs', (req, res) => {
-  const logs = DBService.getAuditLogs(100);
-  res.json({ success: true, auditLogs: logs });
 });
 
 // Start Server

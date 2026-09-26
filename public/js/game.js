@@ -6,6 +6,7 @@ class GameController {
     this.gameState = null;
     this.userState = null;
     this.activeTab = 'record'; // 'record' | 'trend' | 'mybets' | 'ledger'
+    this.isAuthenticated = false;
     
     // Betting Dialog State
     this.selectedOption = null;
@@ -19,6 +20,74 @@ class GameController {
   init() {
     this.bindEvents();
     this.setupConfetti();
+    this.checkAuthState();
+  }
+
+  checkAuthState() {
+    const token = localStorage.getItem('tiranga_token');
+    if (token) {
+      // Validate token by fetching profile
+      this.validateSession();
+    } else {
+      this.showAuthGate();
+    }
+  }
+
+  async validateSession() {
+    try {
+      const res = await window.api.getProfile();
+      if (res.success && res.user) {
+        this.isAuthenticated = true;
+        this.renderUserState(res.user);
+        this.hideAuthGate();
+      } else {
+        this.showAuthGate();
+      }
+    } catch (e) {
+      this.showAuthGate();
+    }
+  }
+
+  showAuthGate() {
+    this.isAuthenticated = false;
+    // Hide game content, show auth modal
+    const mainContent = document.getElementById('main-content-container');
+    const walletPill = document.getElementById('header-wallet-pill');
+    const userPill = document.getElementById('btn-open-user-switcher');
+    const mobileNav = document.getElementById('mobile-bottom-nav');
+    
+    if (mainContent) mainContent.style.display = 'none';
+    if (walletPill) walletPill.style.display = 'none';
+    if (userPill) userPill.style.display = 'none';
+    if (mobileNav) mobileNav.style.display = 'none';
+
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) {
+      const closeBtn = authModal.querySelector('.modal-close-btn');
+      if (closeBtn) closeBtn.style.display = 'none';
+    }
+
+    this.openAuthModal('login');
+  }
+
+  hideAuthGate() {
+    this.isAuthenticated = true;
+    const mainContent = document.getElementById('main-content-container');
+    const walletPill = document.getElementById('header-wallet-pill');
+    const userPill = document.getElementById('btn-open-user-switcher');
+    const mobileNav = document.getElementById('mobile-bottom-nav');
+    
+    if (mainContent) mainContent.style.display = '';
+    if (walletPill) walletPill.style.display = '';
+    if (userPill) userPill.style.display = '';
+    if (mobileNav) mobileNav.style.display = '';
+
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) {
+      const closeBtn = authModal.querySelector('.modal-close-btn');
+      if (closeBtn) closeBtn.style.display = '';
+      authModal.classList.remove('open');
+    }
   }
 
   setupConfetti() {
@@ -171,28 +240,6 @@ class GameController {
     }
 
     this.initAuthControls();
-
-    const quickCreateBtn = document.getElementById('btn-quick-create-user');
-    if (quickCreateBtn) {
-      quickCreateBtn.addEventListener('click', async () => {
-        const input = document.getElementById('quick-create-name');
-        const name = input ? input.value.trim() : '';
-        if (!name) {
-          window.showToast('Please enter a player name', 'error');
-          return;
-        }
-        try {
-          const res = await window.api.createUser({ name, initialBalance: 1000 });
-          if (res.success) {
-            window.showToast(`Player account "${name}" created with ₹1,000 demo credits!`, 'success');
-            if (input) input.value = '';
-            await this.switchUser(res.user.id);
-          }
-        } catch (e) {
-          window.showToast('Failed to create account', 'error');
-        }
-      });
-    }
   }
 
   switchGameMode(gameKey) {
@@ -422,13 +469,20 @@ class GameController {
         try {
           const res = await window.api.login(identifier, password);
           if (res.success && res.user) {
+            this.isAuthenticated = true;
             this.renderUserState(res.user);
+            this.hideAuthGate();
             window.soundCtrl.playClick();
             window.showToast(`Welcome back, ${res.user.name}!`, 'success');
             document.getElementById('auth-modal').classList.remove('open');
             if (passInput) passInput.value = '';
-            if (this.activeTab === 'mybets') this.renderMyBets();
-            if (this.activeTab === 'ledger') this.renderLedger();
+            // Refresh game state
+            try {
+              const state = await window.api.getState();
+              if (state.success) {
+                this.setFullState(state);
+              }
+            } catch(e) {}
           } else {
             window.showToast(res.error || 'Login failed', 'error');
           }
@@ -469,13 +523,20 @@ class GameController {
         try {
           const res = await window.api.signup({ name, mobile, password, initialBalance: 1000 });
           if (res.success && res.user) {
+            this.isAuthenticated = true;
             this.renderUserState(res.user);
+            this.hideAuthGate();
             window.soundCtrl.playWin();
             window.showToast(`Account created! Instant ₹1,000 bonus credited!`, 'success');
             document.getElementById('auth-modal').classList.remove('open');
             if (registerForm) registerForm.reset();
-            if (this.activeTab === 'mybets') this.renderMyBets();
-            if (this.activeTab === 'ledger') this.renderLedger();
+            // Refresh game state
+            try {
+              const state = await window.api.getState();
+              if (state.success) {
+                this.setFullState(state);
+              }
+            } catch(e) {}
           } else {
             window.showToast(res.error || 'Registration failed', 'error');
           }
@@ -490,34 +551,6 @@ class GameController {
       });
     }
 
-    // Demo Instant Login Chips
-    document.querySelectorAll('.demo-account-chip[data-login]').forEach(chip => {
-      chip.addEventListener('click', async () => {
-        const login = chip.dataset.login;
-        const pass = chip.dataset.pass;
-        const identInput = document.getElementById('login-identifier');
-        const passInput = document.getElementById('login-password');
-        if (identInput) identInput.value = login;
-        if (passInput) passInput.value = pass;
-
-        try {
-          const res = await window.api.login(login, pass);
-          if (res.success && res.user) {
-            this.renderUserState(res.user);
-            window.soundCtrl.playClick();
-            window.showToast(`Logged in as: ${res.user.name}`, 'success');
-            document.getElementById('auth-modal').classList.remove('open');
-            if (this.activeTab === 'mybets') this.renderMyBets();
-            if (this.activeTab === 'ledger') this.renderLedger();
-          } else {
-            window.showToast(res.error || 'Demo login failed', 'error');
-          }
-        } catch (e) {
-          window.showToast('Demo login error', 'error');
-        }
-      });
-    });
-
     const btnAccRecharge = document.getElementById('btn-acc-recharge');
     if (btnAccRecharge) {
       btnAccRecharge.addEventListener('click', () => {
@@ -526,106 +559,24 @@ class GameController {
       });
     }
 
-    const btnAccSwitch = document.getElementById('btn-acc-switch');
-    if (btnAccSwitch) {
-      btnAccSwitch.addEventListener('click', () => {
-        document.getElementById('account-modal').classList.remove('open');
-        this.openUserSwitcher();
-      });
-    }
-
     const btnAccLogout = document.getElementById('btn-acc-logout');
     if (btnAccLogout) {
       btnAccLogout.addEventListener('click', () => {
         document.getElementById('account-modal').classList.remove('open');
         window.api.logout();
+        this.isAuthenticated = false;
+        this.userState = null;
         window.showToast('You have been logged out', 'info');
-        this.openAuthModal('login');
+        this.showAuthGate();
       });
     }
   }
 
-  async openUserSwitcher() {
-    const modal = document.getElementById('switch-user-modal');
-    if (modal) {
-      modal.classList.add('open');
-      await this.loadUserAccounts();
-    }
-  }
-
-  async loadUserAccounts() {
-    const container = document.getElementById('player-accounts-list');
-    if (!container) return;
-
-    container.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text-muted);font-size:0.85rem;">Loading accounts...</div>';
-
-    try {
-      const res = await window.api.getUsers();
-      if (res.success && res.users) {
-        const activeUserId = window.api.userId;
-
-        container.innerHTML = res.users.map(u => {
-          const isActive = u.id === activeUserId;
-          const isFrozen = u.status === 'frozen';
-          const avatarChar = (u.name || 'P')[0].toUpperCase();
-
-          return `
-            <div class="player-account-item ${isActive ? 'active' : ''} ${isFrozen ? 'frozen' : ''}" onclick="window.gameCtrl.switchUser('${u.id}')">
-              <div class="account-item-left">
-                <div class="user-avatar-badge ${isFrozen ? 'frozen' : ''}" style="width:34px;height:34px;font-size:0.85rem;">
-                  ${avatarChar}
-                </div>
-                <div>
-                  <div style="font-weight:700;font-size:0.9rem;display:flex;align-items:center;gap:6px;">
-                    ${u.name}
-                    ${isFrozen ? '<span class="status-pill frozen" style="font-size:0.65rem;">❄️ Frozen</span>' : ''}
-                  </div>
-                  <div style="font-size:0.75rem;color:var(--text-dim);font-family:var(--font-mono);">${u.mobile || u.id}</div>
-                </div>
-              </div>
-              <div class="account-item-right">
-                <div style="font-family:var(--font-mono);font-weight:700;font-size:0.92rem;color:var(--color-gold);">
-                  ₹${(u.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
-                ${isActive ? 
-                  '<span style="font-size:0.72rem;color:#10b981;font-weight:800;">✓ CURRENT</span>' : 
-                  '<button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.75rem;">Switch</button>'
-                }
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-    } catch (e) {
-      container.innerHTML = '<div style="color:var(--color-red);text-align:center;padding:10px;">Failed to load accounts.</div>';
-    }
-  }
-
-  async switchUser(userId) {
-    try {
-      window.api.setUserId(userId);
-      const res = await window.api.getState();
-      if (res.success && res.user) {
-        this.renderUserState(res.user);
-        window.soundCtrl.playClick();
-        window.showToast(`Switched active player to: ${res.user.name}`, 'success');
-
-        // Dismiss modal
-        const modal = document.getElementById('switch-user-modal');
-        if (modal) modal.classList.remove('open');
-
-        // Refresh current active tab
-        if (this.activeTab === 'mybets') this.renderMyBets();
-        if (this.activeTab === 'ledger') this.renderLedger();
-      }
-    } catch (e) {
-      window.showToast('Failed to switch user account', 'error');
-    }
-  }
-
   setFullState(data) {
-    this.gameState = data.games;
-    if (data.user) this.renderUserState(data.user);
+    if (data.games) this.gameState = data.games;
+    if (data.user && (!this.isAuthenticated || (this.userState && this.userState.id === data.user.id))) {
+      this.renderUserState(data.user);
+    }
     this.renderCurrentRound();
     this.renderHistoryTab();
   }

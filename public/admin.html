@@ -13,6 +13,31 @@
 </head>
 <body class="admin-body">
 
+  <!-- Admin Login Gate -->
+  <div class="admin-login-gate" id="admin-login-gate">
+    <div class="admin-login-card">
+      <div class="admin-login-icon">🔐</div>
+      <div class="admin-login-title">TIRANGA <span style="color:#fbbf24;">ADMIN</span></div>
+      <div class="admin-login-subtitle">Master Control Console Access</div>
+      <form id="form-admin-login" onsubmit="return false;" style="margin-top:24px;">
+        <div style="margin-bottom:14px;">
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Username / Mobile</label>
+          <input type="text" id="admin-login-identifier" class="form-input" placeholder="admin" required autocomplete="username" style="width:100%;">
+        </div>
+        <div style="margin-bottom:18px;">
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Password</label>
+          <input type="password" id="admin-login-password" class="form-input" placeholder="Enter admin password" required autocomplete="current-password" style="width:100%;">
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-admin-login-submit" style="width:100%;padding:12px;font-size:0.95rem;">Access Admin Console</button>
+        <div id="admin-login-error" style="color:#f43f5e;font-size:0.82rem;margin-top:10px;text-align:center;display:none;"></div>
+      </form>
+      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:16px;text-align:center;">Default: admin / admin123</div>
+    </div>
+  </div>
+
+  <!-- Admin Main Container (hidden until login) -->
+  <div id="admin-main-container" style="display:none;">
+
   <!-- Top Admin Navigation Header -->
   <header class="admin-top-header">
     <div class="admin-brand-wrap">
@@ -38,10 +63,16 @@
         <span>📊</span> Risk Matrix
       </button>
       <button class="admin-nav-tab" data-tab="users">
-        <span>👥</span> User Management
+        <span>👥</span> Users
+      </button>
+      <button class="admin-nav-tab" data-tab="allbets">
+        <span>🎰</span> All Bets
+      </button>
+      <button class="admin-nav-tab" data-tab="payments">
+        <span>💳</span> Payments
       </button>
       <button class="admin-nav-tab" data-tab="audit">
-        <span>📜</span> Audit History
+        <span>📜</span> Audit
       </button>
     </nav>
 
@@ -50,12 +81,43 @@
       <a href="/" target="_blank" class="btn btn-secondary admin-btn-player-link" title="Open Player Web Application">
         <span>📱</span> Player App ↗
       </a>
+      <button class="btn btn-secondary btn-sm" id="btn-admin-logout" title="Logout Admin" style="color:#f43f5e;border-color:rgba(244,63,94,0.3);">
+        🚪 Logout
+      </button>
       <button class="icon-btn" id="btn-admin-global-refresh" title="Refresh All Data">🔄</button>
     </div>
   </header>
 
   <!-- Admin Main Workspace Content -->
   <main class="admin-workspace">
+
+    <!-- Dashboard Stats Strip -->
+    <div class="admin-dashboard-stats" id="admin-dashboard-stats">
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Total Wagered</div>
+        <div class="dash-stat-value text-gold" id="dash-total-wagered">₹0.00</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Total Payouts</div>
+        <div class="dash-stat-value text-green" id="dash-total-payouts">₹0.00</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">House Profit</div>
+        <div class="dash-stat-value" id="dash-house-profit">₹0.00</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Total Bets</div>
+        <div class="dash-stat-value" id="dash-total-bets">0</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Active Users</div>
+        <div class="dash-stat-value text-green" id="dash-active-users">0</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Player Funds</div>
+        <div class="dash-stat-value text-gold" id="dash-player-funds">₹0.00</div>
+      </div>
+    </div>
 
     <!-- Top Live Game Status Strip -->
     <div class="admin-live-strip">
@@ -367,6 +429,70 @@
       </div>
     </section>
 
+    <!-- ======================================================== -->
+    <!-- TAB: ALL BETS                                            -->
+    <!-- ======================================================== -->
+    <section class="admin-tab-pane" id="pane-allbets">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>🎰</span> All Bets (All Users)
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh-all-bets">🔄 Refresh</button>
+        </div>
+        <div class="exposure-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Period</th>
+                <th>Game</th>
+                <th>Option</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Payout</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="all-bets-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB: PAYMENTS / LEDGER                                   -->
+    <!-- ======================================================== -->
+    <section class="admin-tab-pane" id="pane-payments">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <div class="admin-card-title">
+            <span>💳</span> All Payments &amp; Wallet Transactions
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh-all-ledger">🔄 Refresh</button>
+        </div>
+        <div class="exposure-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Change</th>
+                <th>Balance After</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="all-ledger-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ======================================================== -->
@@ -505,6 +631,8 @@
       </div>
     </div>
   </div>
+
+  </div> <!-- end admin-main-container -->
 
   <!-- Toast Container -->
   <div id="toast-container"></div>

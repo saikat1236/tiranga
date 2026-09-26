@@ -8,19 +8,126 @@ class AdminController {
     this.exposureData = null;
     this.usersList = [];
     this.auditLogs = [];
-    this.activeTab = 'control'; // 'control' | 'exposure' | 'users' | 'audit'
+    this.allBets = [];
+    this.allLedger = [];
+    this.activeTab = 'control'; // 'control' | 'exposure' | 'users' | 'allbets' | 'payments' | 'audit'
     this.selectedAdjustAction = 'credit';
     this.searchQuery = '';
     this.statusFilter = 'all';
+    this.adminToken = localStorage.getItem('tiranga_admin_token') || null;
   }
 
   init() {
-    this.bindEvents();
     this.setupModals();
+    this.setupAdminLogin();
+    this.checkAdminAuth();
+  }
+
+  // Admin Login Gate
+  setupAdminLogin() {
+    const loginForm = document.getElementById('form-admin-login');
+    if (loginForm) {
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const identifier = document.getElementById('admin-login-identifier').value.trim();
+        const password = document.getElementById('admin-login-password').value;
+        const errorEl = document.getElementById('admin-login-error');
+        const submitBtn = document.getElementById('btn-admin-login-submit');
+
+        if (!identifier || !password) {
+          if (errorEl) { errorEl.textContent = 'Please enter credentials'; errorEl.style.display = 'block'; }
+          return;
+        }
+
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Authenticating...'; }
+
+        try {
+          const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password })
+          });
+          const data = await res.json();
+          if (data.success && data.token) {
+            this.adminToken = data.token;
+            localStorage.setItem('tiranga_admin_token', data.token);
+            // Also set in api client for websocket reuse
+            window.api.token = data.token;
+            this.showAdminConsole();
+            if (errorEl) errorEl.style.display = 'none';
+          } else {
+            if (errorEl) { errorEl.textContent = data.error || 'Login failed'; errorEl.style.display = 'block'; }
+          }
+        } catch (err) {
+          if (errorEl) { errorEl.textContent = 'Network error'; errorEl.style.display = 'block'; }
+        } finally {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Access Admin Console'; }
+        }
+      });
+    }
+  }
+
+  checkAdminAuth() {
+    if (this.adminToken) {
+      window.api.token = this.adminToken;
+      // Verify token by hitting a protected endpoint
+      this.verifyAdminToken();
+    } else {
+      this.showLoginGate();
+    }
+  }
+
+  async verifyAdminToken() {
+    try {
+      const res = await fetch('/api/admin/dashboard-stats', {
+        headers: { 'Authorization': `Bearer ${this.adminToken}` }
+      });
+      if (res.ok) {
+        this.showAdminConsole();
+      } else {
+        this.adminToken = null;
+        localStorage.removeItem('tiranga_admin_token');
+        this.showLoginGate();
+      }
+    } catch (e) {
+      this.showLoginGate();
+    }
+  }
+
+  showLoginGate() {
+    const gate = document.getElementById('admin-login-gate');
+    const main = document.getElementById('admin-main-container');
+    if (gate) gate.style.display = 'flex';
+    if (main) main.style.display = 'none';
+  }
+
+  showAdminConsole() {
+    const gate = document.getElementById('admin-login-gate');
+    const main = document.getElementById('admin-main-container');
+    if (gate) gate.style.display = 'none';
+    if (main) main.style.display = 'block';
+    this.bindEvents();
     this.initWebSocket();
     this.loadExposure();
     this.loadUsers();
     this.loadAuditLogs();
+    this.loadDashboardStats();
+  }
+
+  adminLogout() {
+    this.adminToken = null;
+    localStorage.removeItem('tiranga_admin_token');
+    window.api.token = null;
+    this.showLoginGate();
+  }
+
+  // Override API fetch to include admin token
+  async adminFetch(url, options = {}) {
+    const headers = { ...(options.headers || {}), 'Content-Type': 'application/json' };
+    if (this.adminToken) {
+      headers['Authorization'] = `Bearer ${this.adminToken}`;
+    }
+    return fetch(url, { ...options, headers });
   }
 
   initWebSocket() {
@@ -154,6 +261,32 @@ class AdminController {
       });
     }
 
+    // Admin Logout Button
+    const logoutBtn = document.getElementById('btn-admin-logout');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        this.adminLogout();
+      });
+    }
+
+    // All Bets Refresh
+    const refreshAllBetsBtn = document.getElementById('btn-refresh-all-bets');
+    if (refreshAllBetsBtn) {
+      refreshAllBetsBtn.addEventListener('click', () => {
+        this.loadAllBets();
+        window.showToast('Bets data refreshed', 'info');
+      });
+    }
+
+    // All Ledger Refresh
+    const refreshAllLedgerBtn = document.getElementById('btn-refresh-all-ledger');
+    if (refreshAllLedgerBtn) {
+      refreshAllLedgerBtn.addEventListener('click', () => {
+        this.loadAllLedger();
+        window.showToast('Payment records refreshed', 'info');
+      });
+    }
+
     // User Search Input
     const searchInput = document.getElementById('user-search-input');
     if (searchInput) {
@@ -261,6 +394,8 @@ class AdminController {
     if (tabKey === 'exposure') this.loadExposure();
     if (tabKey === 'users') this.loadUsers();
     if (tabKey === 'audit') this.loadAuditLogs();
+    if (tabKey === 'allbets') this.loadAllBets();
+    if (tabKey === 'payments') this.loadAllLedger();
   }
 
   updateFromTick(tickData) {
@@ -296,10 +431,13 @@ class AdminController {
 
   async setControlMode(mode) {
     try {
-      const res = await window.api.setAdminMode(this.currentGameKey, mode);
-      if (res.success) {
-        this.controlMode = res.controlMode;
-        this.manualOverrideNumber = res.manualOverrideNumber;
+      const res = await this.adminFetch(`/api/admin/set-mode`, {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey, mode })
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.controlMode = data.mode || mode;
         this.renderControlModeState();
         window.showToast(`Game mode set to ${mode.toUpperCase()}!`, 'success');
       }
@@ -310,8 +448,12 @@ class AdminController {
 
   async forceWinningNumber(num) {
     try {
-      const res = await window.api.setAdminOutcome(this.currentGameKey, num);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/admin/set-outcome`, {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey, winningNumber: num })
+      });
+      const data = await res.json();
+      if (data.success) {
         this.controlMode = 'manual';
         this.manualOverrideNumber = num;
         this.renderControlModeState();
@@ -325,8 +467,12 @@ class AdminController {
 
   async clearOverride() {
     try {
-      const res = await window.api.setAdminOutcome(this.currentGameKey, null);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/admin/set-outcome`, {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey, winningNumber: null })
+      });
+      const data = await res.json();
+      if (data.success) {
         this.manualOverrideNumber = null;
         this.renderControlModeState();
         window.showToast('Manual outcome cleared. Reverted to automatic mode.', 'info');
@@ -338,13 +484,18 @@ class AdminController {
 
   async forceSettle() {
     try {
-      const res = await window.api.forceSettle(this.currentGameKey);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/admin/force-settle`, {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey })
+      });
+      const data = await res.json();
+      if (data.success) {
         if (window.soundCtrl) window.soundCtrl.playWin();
         window.showToast('⚡ Round force-settled immediately!', 'success');
         this.loadExposure();
         this.loadAuditLogs();
         this.loadUsers();
+        this.loadDashboardStats();
       }
     } catch (e) {
       window.showToast('Failed to force settle', 'error');
@@ -353,8 +504,12 @@ class AdminController {
 
   async speedTimer(seconds = 5) {
     try {
-      const res = await window.api.speedTimer(this.currentGameKey, seconds);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/admin/speed-timer`, {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey, seconds })
+      });
+      const data = await res.json();
+      if (data.success) {
         window.showToast(`Timer accelerated! Settle in ${seconds}s.`, 'info');
       }
     } catch (e) {
@@ -406,9 +561,10 @@ class AdminController {
 
   async loadExposure() {
     try {
-      const res = await window.api.getAdminExposure(this.currentGameKey);
-      if (res.success) {
-        this.exposureData = res.exposure;
+      const res = await this.adminFetch(`/api/admin/exposure?gameKey=${this.currentGameKey}`);
+      const data = await res.json();
+      if (data.success) {
+        this.exposureData = data.exposure;
         this.renderExposureTable('exposure-table-body');
         this.renderExposureTable('exposure-table-body-preview');
         this.renderBetOptionBreakdown('admin-options-breakdown', 'admin-total-wagered');
@@ -484,9 +640,10 @@ class AdminController {
   // ========================================================
   async loadUsers() {
     try {
-      const res = await window.api.getUsers();
-      if (res.success) {
-        this.usersList = res.users;
+      const res = await this.adminFetch('/api/users');
+      const data = await res.json();
+      if (data.success) {
+        this.usersList = data.users;
         this.renderUsers();
       }
     } catch (e) {
@@ -608,13 +765,18 @@ class AdminController {
     const balance = parseFloat(balanceInput.value) || 0;
 
     try {
-      const res = await window.api.createUser({ name, mobile, initialBalance: balance });
-      if (res.success) {
+      const res = await this.adminFetch('/api/users', {
+        method: 'POST',
+        body: JSON.stringify({ name, mobile, initialBalance: balance })
+      });
+      const data = await res.json();
+      if (data.success) {
         window.showToast(`User ${name} created successfully!`, 'success');
         document.getElementById('create-user-modal').classList.remove('open');
         nameInput.value = '';
         mobileInput.value = '';
         this.loadUsers();
+        this.loadDashboardStats();
       }
     } catch (e) {
       window.showToast('Failed to create user', 'error');
@@ -641,11 +803,16 @@ class AdminController {
     }
 
     try {
-      const res = await window.api.adjustUserBalanceAdvanced(userId, this.selectedAdjustAction, amountVal, reason);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/users/${userId}/adjust-balance`, {
+        method: 'POST',
+        body: JSON.stringify({ action: this.selectedAdjustAction, amount: amountVal, reason })
+      });
+      const data = await res.json();
+      if (data.success) {
         window.showToast('User balance updated successfully!', 'success');
         document.getElementById('adjust-balance-modal').classList.remove('open');
         this.loadUsers();
+        this.loadDashboardStats();
       }
     } catch (e) {
       window.showToast('Failed to adjust balance', 'error');
@@ -655,10 +822,15 @@ class AdminController {
   // Toggle freeze/unfreeze
   async toggleFreeze(userId, newStatus) {
     try {
-      const res = await window.api.toggleUserStatus(userId, newStatus);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/users/${userId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: newStatus })
+      });
+      const data = await res.json();
+      if (data.success) {
         window.showToast(`User account is now ${newStatus.toUpperCase()}`, 'info');
         this.loadUsers();
+        this.loadDashboardStats();
       }
     } catch (e) {
       window.showToast('Failed to change user status', 'error');
@@ -668,10 +840,11 @@ class AdminController {
   // Inspect user drawer
   async openUserDrawer(userId) {
     try {
-      const res = await window.api.getUserDetails(userId);
-      if (!res.success) return;
+      const res = await this.adminFetch(`/api/users/${userId}`);
+      const data = await res.json();
+      if (!data.success) return;
 
-      const { user, bets, ledger } = res;
+      const { user, bets, ledger } = data;
       document.getElementById('drawer-user-title').textContent = `${user.name} (${user.id})`;
 
       const metaBox = document.getElementById('drawer-user-meta-box');
@@ -725,13 +898,25 @@ class AdminController {
   }
 
   // Switch to player app as this user
-  loginAsUser(userId) {
-    localStorage.setItem('tiranga_user_id', userId);
-    window.api.setUserId(userId);
-    window.showToast(`Switched active player to [${userId}]! Opening Player App...`, 'success');
-    setTimeout(() => {
-      window.open('/', '_blank');
-    }, 400);
+  // Switch to player app as this user
+  async loginAsUser(userId) {
+    try {
+      const res = await this.adminFetch(`/api/admin/login-as/${userId}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem('tiranga_token', data.token);
+        localStorage.setItem('tiranga_user_id', data.user.id);
+        localStorage.setItem('tiranga_user_profile', JSON.stringify(data.user));
+        window.showToast(`Switched active player to [${data.user.name || userId}]! Opening Player App...`, 'success');
+        setTimeout(() => {
+          window.open('/', '_blank');
+        }, 400);
+      } else {
+        window.showToast(data.error || 'Failed to switch player', 'error');
+      }
+    } catch (e) {
+      window.showToast('Failed to switch player session', 'error');
+    }
   }
 
   // Delete User
@@ -741,12 +926,14 @@ class AdminController {
     }
 
     try {
-      const res = await window.api.deleteUser(userId);
-      if (res.success) {
+      const res = await this.adminFetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
         window.showToast('User deleted successfully', 'info');
         this.loadUsers();
+        this.loadDashboardStats();
       } else {
-        window.showToast(res.error || 'Failed to delete user', 'error');
+        window.showToast(data.error || 'Failed to delete user', 'error');
       }
     } catch (e) {
       window.showToast('Failed to delete user', 'error');
@@ -758,9 +945,10 @@ class AdminController {
   // ========================================================
   async loadAuditLogs() {
     try {
-      const res = await window.api.getAuditLogs();
-      if (res.success) {
-        this.auditLogs = res.auditLogs;
+      const res = await this.adminFetch('/api/admin/audit-logs');
+      const data = await res.json();
+      if (data.success) {
+        this.auditLogs = data.auditLogs;
         this.renderAuditLogs();
       }
     } catch (e) {
@@ -798,6 +986,124 @@ class AdminController {
         </tr>
       `;
     }).join('');
+  }
+
+  // ========================================================
+  //             ALL BETS CONTROLLER
+  // ========================================================
+  async loadAllBets() {
+    try {
+      const res = await this.adminFetch('/api/admin/all-bets');
+      const data = await res.json();
+      if (data.success) {
+        this.allBets = data.bets;
+        this.renderAllBets();
+      }
+    } catch (e) {
+      console.error('Failed to load all bets', e);
+    }
+  }
+
+  renderAllBets() {
+    const tbody = document.getElementById('all-bets-table-body');
+    if (!tbody) return;
+
+    if (this.allBets.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No bets recorded yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.allBets.map(b => {
+      const statusClass = b.status === 'WON' ? 'text-green' : b.status === 'LOST' ? 'text-red' : 'text-gold';
+      return `
+        <tr>
+          <td>
+            <div style="font-weight:700;font-size:0.85rem;">${b.user_name || b.user_id}</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);font-family:var(--font-mono);">${b.user_mobile || ''}</div>
+          </td>
+          <td style="font-family:var(--font-mono);font-size:0.78rem;">${b.period_id}</td>
+          <td style="font-size:0.8rem;">${b.game_key}</td>
+          <td><span style="font-weight:700;text-transform:uppercase;">${b.option}</span></td>
+          <td style="font-family:var(--font-mono);">₹${b.amount}</td>
+          <td><span class="${statusClass}" style="font-weight:700;">${b.status}</span></td>
+          <td style="font-family:var(--font-mono);font-weight:700;color:${b.payout > 0 ? '#10b981' : 'var(--text-muted)'};">₹${(b.payout || 0).toFixed(2)}</td>
+          <td style="font-size:0.75rem;color:var(--text-dim);">${new Date(b.placed_at).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ========================================================
+  //             ALL LEDGER / PAYMENTS CONTROLLER
+  // ========================================================
+  async loadAllLedger() {
+    try {
+      const res = await this.adminFetch('/api/admin/all-ledger');
+      const data = await res.json();
+      if (data.success) {
+        this.allLedger = data.ledger;
+        this.renderAllLedger();
+      }
+    } catch (e) {
+      console.error('Failed to load all ledger', e);
+    }
+  }
+
+  renderAllLedger() {
+    const tbody = document.getElementById('all-ledger-table-body');
+    if (!tbody) return;
+
+    if (this.allLedger.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No transactions recorded yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.allLedger.map(l => {
+      const isCredit = l.amount >= 0;
+      return `
+        <tr>
+          <td>
+            <div style="font-weight:700;font-size:0.85rem;">${l.user_name || l.user_id}</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);font-family:var(--font-mono);">${l.user_mobile || ''}</div>
+          </td>
+          <td><span class="status-pill active" style="font-size:0.7rem;">${l.type}</span></td>
+          <td style="font-size:0.8rem;">${l.description}</td>
+          <td style="font-family:var(--font-mono);font-weight:700;color:${isCredit ? '#10b981' : '#f43f5e'};">${isCredit ? '+' : ''}₹${Math.abs(l.amount).toFixed(2)}</td>
+          <td style="font-family:var(--font-mono);">₹${l.balance_after.toFixed(2)}</td>
+          <td style="font-size:0.75rem;color:var(--text-dim);">${new Date(l.created_at).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ========================================================
+  //             DASHBOARD STATS CONTROLLER
+  // ========================================================
+  async loadDashboardStats() {
+    try {
+      const res = await this.adminFetch('/api/admin/dashboard-stats');
+      const data = await res.json();
+      if (data.success) {
+        this.renderDashboardStats(data.stats);
+      }
+    } catch (e) {
+      console.error('Failed to load dashboard stats', e);
+    }
+  }
+
+  renderDashboardStats(stats) {
+    const fmt = (v) => `₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    
+    const el = (id) => document.getElementById(id);
+    if (el('dash-total-wagered')) el('dash-total-wagered').textContent = fmt(stats.totalWagered);
+    if (el('dash-total-payouts')) el('dash-total-payouts').textContent = fmt(stats.totalPayouts);
+    if (el('dash-house-profit')) {
+      el('dash-house-profit').textContent = `${stats.totalHouseProfit >= 0 ? '+' : ''}${fmt(stats.totalHouseProfit)}`;
+      el('dash-house-profit').className = `dash-stat-value ${stats.totalHouseProfit >= 0 ? 'text-green' : 'text-red'}`;
+    }
+    if (el('dash-total-bets')) el('dash-total-bets').textContent = stats.totalBets;
+    if (el('dash-active-users')) el('dash-active-users').textContent = stats.activeUsers;
+    if (el('dash-player-funds')) el('dash-player-funds').textContent = fmt(stats.totalPlayerBalance);
   }
 }
 

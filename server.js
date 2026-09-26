@@ -489,6 +489,12 @@ function settleRound(gameKey) {
   // Preserve manual override if admin has locked in manual mode
   if (game.controlMode !== 'manual') {
     game.manualOverrideNumber = null;
+    if (DBService.updateGameSettings) {
+      DBService.updateGameSettings(gameKey, {
+        controlMode: game.controlMode,
+        manualOverrideNumber: null
+      });
+    }
   }
 
   // Start next round
@@ -918,6 +924,12 @@ app.post('/api/admin/set-mode', adminAuth, (req, res) => {
       if (mode !== 'manual') {
         g.manualOverrideNumber = null;
       }
+      if (DBService.updateGameSettings) {
+        DBService.updateGameSettings(k, {
+          controlMode: g.controlMode,
+          manualOverrideNumber: g.manualOverrideNumber
+        });
+      }
       broadcast({
         type: 'ADMIN_OUTCOME_PRESET',
         gameKey: k,
@@ -947,6 +959,12 @@ app.post('/api/admin/set-outcome', adminAuth, (req, res) => {
       } else {
         g.manualOverrideNumber = num;
         g.controlMode = 'manual';
+      }
+      if (DBService.updateGameSettings) {
+        DBService.updateGameSettings(k, {
+          controlMode: g.controlMode,
+          manualOverrideNumber: g.manualOverrideNumber
+        });
       }
       broadcast({
         type: 'ADMIN_OUTCOME_PRESET',
@@ -1243,6 +1261,18 @@ async function startServer() {
   if (DBService.init) {
     try {
       await DBService.init();
+      // Restore persisted game settings (control mode & manual override) from Supabase
+      if (DBService.getGameSettings) {
+        ['wingo_30', 'wingo_60', 'wingo_180', 'wingo_300'].forEach(k => {
+          const s = DBService.getGameSettings(k);
+          if (s && games[k]) {
+            if (s.controlMode) games[k].controlMode = s.controlMode;
+            if (s.manualOverrideNumber !== null && s.manualOverrideNumber !== undefined) {
+              games[k].manualOverrideNumber = s.manualOverrideNumber;
+            }
+          }
+        });
+      }
     } catch (e) {
       console.error('Database initialization warning:', e);
     }

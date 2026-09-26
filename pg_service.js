@@ -28,11 +28,8 @@ function normalizePostgresUrl(rawUrl) {
   return rawUrl;
 }
 
-const rawConnectionString = process.env.DATABASE_URL;
-if (!rawConnectionString) {
-  throw new Error('DATABASE_URL environment variable is required for pg_service');
-}
-
+const SUPABASE_FALLBACK_URL = 'postgresql://postgres.hooqiccbtakpcogziona:tiranga-db123@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+const rawConnectionString = process.env.DATABASE_URL || SUPABASE_FALLBACK_URL;
 const connectionString = normalizePostgresUrl(rawConnectionString);
 
 try {
@@ -134,6 +131,13 @@ async function initSchema() {
       determination_method TEXT NOT NULL,
       bets_count INT DEFAULT 0,
       timestamp TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS game_settings (
+      game_key TEXT PRIMARY KEY,
+      control_mode TEXT DEFAULT 'random',
+      manual_override_number INT,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE INDEX IF NOT EXISTS idx_pg_users_mobile ON users(mobile);
@@ -269,7 +273,17 @@ async function loadCacheFromDatabase() {
       timestamp: a.timestamp ? new Date(a.timestamp).toISOString() : new Date().toISOString()
     }));
 
-    console.log(`🌐 Supabase PostgreSQL Loaded: ${cache.users.size} users, ${cache.bets.length} bets, ${cache.ledger.length} ledger entries.`);
+    // 6. Game Settings (Control Mode & Manual Override)
+    const settingsRes = await pool.query('SELECT * FROM game_settings');
+    cache.settings = {};
+    settingsRes.rows.forEach(s => {
+      cache.settings[s.game_key] = {
+        controlMode: s.control_mode,
+        manualOverrideNumber: s.manual_override_number !== null ? parseInt(s.manual_override_number, 10) : null
+      };
+    });
+
+    console.log(`🌐 Supabase PostgreSQL Loaded: ${cache.users.size} users, ${cache.bets.length} bets, ${cache.ledger.length} ledger entries, ${Object.keys(cache.settings).length} game settings.`);
   } catch (err) {
     console.error('Error loading cache from Supabase PostgreSQL:', err);
   }
@@ -675,6 +689,41 @@ const DBService = {
       frozenUsers,
       totalPlayerBalance: Math.round(totalPlayerBalance * 100) / 100
     };
+  },
+
+  // Game Settings & Manual Override Persistence
+  getGameSettings(gameKey) {
+    if (!cache.settings) cache.settings = {};
+    return cache.settings[gameKey] || null;
+  },
+
+  getAllGameSettings() {
+    return cache.settings || {};
+  },
+
+  updateGameSettings(gameKey, { controlMode, manualOverrideNumber }) {
+    if (!cache.settings) cache.settings = {};
+    if (!cache.settings[gameKey]) {
+      cache.settings[gameKey] = { controlMode: 'random', manualOverrideNumber: null };
+    }
+
+    if (controlMode !== undefined) cache.settings[gameKey].controlMode = controlMode;
+    if (manualOverrideNumber !== undefined) cache.settings[gameKey].manualOverrideNumber = manualOverrideNumber;
+
+    const currentMode = cache.settings[gameKey].controlMode || 'random';
+    const currentOverride = (cache.settings[gameKey].manualOverrideNumber !== null && cache.settings[gameKey].manualOverrideNumber !== undefined)
+      ? parseInt(cache.settings[gameKey].manualOverrideNumber, 10)
+      : null;
+
+    return pool.query(`
+      INSERT INTO game_settings (game_key, control_mode, manual_override_number, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (game_key) DO UPDATE
+      SET control_mode = EXCLUDED.control_mode,
+          manual_override_number = EXCLUDED.manual_override_number,
+          updated_at = NOW()
+    `, [gameKey, currentMode, currentOverride])
+    .catch(err => console.error('Failed to update game settings in PostgreSQL:', err));
   }
 };
 

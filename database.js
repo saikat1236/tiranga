@@ -1,12 +1,15 @@
 // Universal Database Layer for Tiranga Colour Prediction
-// Automatically connects to Supabase Cloud PostgreSQL when DATABASE_URL is set,
-// otherwise falls back to local SQLite.
+// Connected directly to Supabase Cloud PostgreSQL
 require('dotenv').config();
 
-if (process.env.DATABASE_URL) {
-  module.exports = require('./pg_service.js');
-  return;
+const SUPABASE_DEFAULT_URL = 'postgresql://postgres.hooqiccbtakpcogziona:tiranga-db123@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = SUPABASE_DEFAULT_URL;
 }
+
+module.exports = require('./pg_service.js');
+return;
 
 const path = require('path');
 const fs = require('fs');

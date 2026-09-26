@@ -1,4 +1,13 @@
-// SQLite Persistent Database Layer for Tiranga Colour Prediction
+// Universal Database Layer for Tiranga Colour Prediction
+// Automatically connects to Supabase Cloud PostgreSQL when DATABASE_URL is set,
+// otherwise falls back to local SQLite.
+require('dotenv').config();
+
+if (process.env.DATABASE_URL) {
+  module.exports = require('./pg_service.js');
+  return;
+}
+
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');

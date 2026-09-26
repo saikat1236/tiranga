@@ -1,4 +1,4 @@
-// Real-time API Client & WebSocket Manager
+// Real-time API Client & WebSocket Manager with SQLite Auth Support
 
 class AppAPI {
   constructor() {
@@ -6,6 +6,33 @@ class AppAPI {
     this.listeners = new Map();
     this.reconnectAttempts = 0;
     this.userId = localStorage.getItem('tiranga_user_id') || 'demo_user';
+    this.token = localStorage.getItem('tiranga_token') || null;
+    this.currentUser = null;
+  }
+
+  getHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    return headers;
+  }
+
+  setAuth(token, user) {
+    this.token = token;
+    this.currentUser = user;
+    if (token) {
+      localStorage.setItem('tiranga_token', token);
+    } else {
+      localStorage.removeItem('tiranga_token');
+    }
+
+    if (user && user.id) {
+      this.userId = user.id;
+      localStorage.setItem('tiranga_user_id', user.id);
+      localStorage.setItem('tiranga_user_profile', JSON.stringify(user));
+    }
+    this.emit('auth_changed', { token, user });
   }
 
   setUserId(id) {
@@ -70,16 +97,71 @@ class AppAPI {
     }
   }
 
-  // REST API Methods
+  // ==========================================
+  //            Authentication APIs
+  // ==========================================
+  async signup(data) {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.success && result.token) {
+      this.setAuth(result.token, result.user);
+    }
+    return result;
+  }
+
+  async login(identifier, password) {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
+    const result = await res.json();
+    if (result.success && result.token) {
+      this.setAuth(result.token, result.user);
+    }
+    return result;
+  }
+
+  async getProfile() {
+    const res = await fetch(`/api/auth/me?userId=${this.userId}`, {
+      headers: this.getHeaders()
+    });
+    const result = await res.json();
+    if (result.success && result.user) {
+      this.currentUser = result.user;
+    }
+    return result;
+  }
+
+  logout() {
+    this.token = null;
+    this.currentUser = null;
+    localStorage.removeItem('tiranga_token');
+    localStorage.removeItem('tiranga_user_profile');
+    this.userId = 'demo_user';
+    localStorage.setItem('tiranga_user_id', 'demo_user');
+    this.emit('auth_changed', { token: null, user: null });
+    this.emit('user_switched', 'demo_user');
+  }
+
+  // ==========================================
+  //               Game REST APIs
+  // ==========================================
   async getState() {
-    const res = await fetch(`/api/state?userId=${this.userId}`);
+    const res = await fetch(`/api/state?userId=${this.userId}`, {
+      headers: this.getHeaders()
+    });
     return await res.json();
   }
 
   async placeBet(gameKey, option, amount) {
     const res = await fetch('/api/bet', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({ userId: this.userId, gameKey, option, amount })
     });
     return await res.json();
@@ -88,7 +170,7 @@ class AppAPI {
   async rechargeWallet(amount) {
     const res = await fetch('/api/wallet/recharge', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({ userId: this.userId, amount })
     });
     return await res.json();
@@ -96,12 +178,14 @@ class AppAPI {
 
   async getMyBets(gameKey) {
     const url = gameKey ? `/api/bets/my?userId=${this.userId}&gameKey=${gameKey}` : `/api/bets/my?userId=${this.userId}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: this.getHeaders() });
     return await res.json();
   }
 
   async getWalletLedger() {
-    const res = await fetch(`/api/wallet/ledger?userId=${this.userId}`);
+    const res = await fetch(`/api/wallet/ledger?userId=${this.userId}`, {
+      headers: this.getHeaders()
+    });
     return await res.json();
   }
 

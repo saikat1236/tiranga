@@ -76,7 +76,7 @@ class MainApp {
           const histSec = document.querySelector('.history-section');
           if (histSec) histSec.scrollIntoView({ behavior: 'smooth' });
         } else if (target === 'switchuser') {
-          window.gameCtrl.openUserSwitcher();
+          window.gameCtrl.openAccountModal();
         }
       });
     });

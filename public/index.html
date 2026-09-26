@@ -29,11 +29,16 @@
 
     <!-- Header Actions -->
     <div class="header-actions">
-      <!-- Active User Profile Pill (Click to Switch Account) -->
-      <button class="user-profile-pill" id="btn-open-user-switcher" title="Switch User Account">
+      <!-- Active User Profile Pill (Click to view Profile & Account) -->
+      <button class="user-profile-pill" id="btn-open-user-switcher" title="View Account Profile">
         <span class="user-pill-avatar" id="header-user-avatar">P</span>
         <span class="user-pill-name" id="header-user-name">Player 8892</span>
         <span class="user-pill-arrow">▾</span>
+      </button>
+
+      <!-- Auth Trigger Button (Login / Register) -->
+      <button class="btn btn-secondary btn-sm" id="btn-open-auth-modal" style="display:inline-flex;align-items:center;gap:5px;font-size:0.8rem;padding:6px 12px;font-weight:700;" title="Login or Create Account">
+        <span>🔑</span> <span id="header-auth-btn-text">Sign In</span>
       </button>
 
       <!-- User Wallet Pill -->
@@ -268,6 +273,165 @@
   <!-- ========================================== -->
   <!--                 MODALS                     -->
   <!-- ========================================== -->
+
+  <!-- Modal: Authentication (Login & Sign Up) -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal-card auth-modal-card">
+      <div class="modal-header">
+        <div class="modal-title" id="auth-modal-title">Member Access</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Auth Tabs: Login / Register -->
+        <div class="auth-tabs">
+          <button class="auth-tab-btn active" id="tab-auth-login" data-tab="login">
+            <span>🔑</span> Log In
+          </button>
+          <button class="auth-tab-btn" id="tab-auth-register" data-tab="register">
+            <span>✨</span> Sign Up (Register)
+          </button>
+        </div>
+
+        <!-- FORM 1: LOGIN -->
+        <form id="form-auth-login" onsubmit="return false;">
+          <div class="auth-input-group">
+            <label class="auth-input-label">Mobile Number or Username</label>
+            <div class="auth-phone-wrap">
+              <span class="auth-prefix-badge">🇮🇳 +91</span>
+              <input type="text" id="login-identifier" placeholder="Enter 10-digit mobile number" required autocomplete="username">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-input-label">Password</label>
+            <div class="auth-pass-wrap">
+              <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+              <button type="button" class="btn-toggle-pass" id="btn-toggle-login-pass" title="Show/Hide Password">👁️</button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="btn-submit-login" style="width:100%;padding:12px;font-size:0.95rem;margin-top:6px;">
+            Log In to Play
+          </button>
+
+          <!-- Fast 1-Click Demo Accounts Row -->
+          <div class="demo-chips-title">⚡ Instant 1-Click Demo Logins:</div>
+          <div class="demo-chips-container" id="auth-demo-chips">
+            <button type="button" class="demo-account-chip" data-login="9876543210" data-pass="password123">
+              <span>👤 Player 8892</span> <span class="chip-bal">₹5,000</span>
+            </button>
+            <button type="button" class="demo-account-chip" data-login="9811122334" data-pass="password123">
+              <span>👤 Rahul</span> <span class="chip-bal">₹2,850</span>
+            </button>
+            <button type="button" class="demo-account-chip" data-login="9722233445" data-pass="password123">
+              <span>👤 Priya</span> <span class="chip-bal">₹14,200</span>
+            </button>
+            <button type="button" class="demo-account-chip" data-login="9999988888" data-pass="password123">
+              <span>👑 Vikram VIP</span> <span class="chip-bal">₹58,000</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- FORM 2: REGISTER / SIGN UP -->
+        <form id="form-auth-register" style="display:none;" onsubmit="return false;">
+          <!-- Welcome Offer Callout -->
+          <div class="auth-bonus-box">
+            <div class="auth-bonus-icon">🎁</div>
+            <div>
+              <div class="auth-bonus-title">Instant ₹1,000 Welcome Bonus</div>
+              <div class="auth-bonus-text">Register a new player account and receive ₹1,000 virtual demo trading balance immediately.</div>
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-input-label">Full Name</label>
+            <input type="text" id="register-name" class="form-input" placeholder="Your name (e.g. Anand Sharma)" required autocomplete="name">
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-input-label">Mobile Number</label>
+            <div class="auth-phone-wrap">
+              <span class="auth-prefix-badge">🇮🇳 +91</span>
+              <input type="tel" id="register-mobile" placeholder="10-digit mobile number" maxlength="10" required autocomplete="tel-national">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-input-label">Create Password</label>
+            <div class="auth-pass-wrap">
+              <input type="password" id="register-password" class="form-input" placeholder="Minimum 4 characters" minlength="4" required autocomplete="new-password">
+              <button type="button" class="btn-toggle-pass" id="btn-toggle-reg-pass" title="Show/Hide Password">👁️</button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="btn-submit-register" style="width:100%;padding:12px;font-size:0.95rem;margin-top:6px;">
+            Create Account & Get ₹1,000 Bonus
+          </button>
+        </form>
+      </div>
+      <div class="modal-footer" style="justify-content:center;">
+        <span style="font-size:0.78rem;color:var(--text-muted);" id="auth-footer-text">
+          Don't have an account? <a href="#" id="link-switch-to-register" style="color:#fbbf24;font-weight:700;">Sign up now</a>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Account Profile & Overview -->
+  <div class="modal-overlay" id="account-modal">
+    <div class="modal-card account-profile-card">
+      <div class="modal-header">
+        <div class="modal-title">Player Profile</div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Hero Header with Avatar & Details -->
+        <div class="account-hero-header">
+          <div class="account-avatar-large" id="acc-modal-avatar">P</div>
+          <div class="account-info-main">
+            <div class="account-name-title">
+              <span id="acc-modal-name">Player 8892</span>
+              <span class="account-tier-badge" id="acc-modal-badge">VIP Level 1</span>
+            </div>
+            <div class="account-sub-details" id="acc-modal-mobile">+91 98765 43210</div>
+            <div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">User ID: <span id="acc-modal-id">demo_user</span></div>
+          </div>
+        </div>
+
+        <!-- Financial Stats Grid -->
+        <div class="account-stats-grid">
+          <div class="account-stat-box primary">
+            <div class="account-stat-label">Available Wallet Balance</div>
+            <div class="account-stat-value" id="acc-modal-balance">₹5,000.00</div>
+          </div>
+          <div class="account-stat-box">
+            <div class="account-stat-label">Total Predictions</div>
+            <div class="account-stat-value" id="acc-modal-bets">0</div>
+          </div>
+          <div class="account-stat-box">
+            <div class="account-stat-label">Total Won</div>
+            <div class="account-stat-value" style="color:#10b981;" id="acc-modal-won">₹0.00</div>
+          </div>
+        </div>
+
+        <!-- Quick Actions Row -->
+        <div class="account-actions-row">
+          <button class="btn btn-primary" id="btn-acc-recharge" style="flex:1;">
+            <span>👛</span> Top Up
+          </button>
+          <button class="btn btn-secondary" id="btn-acc-switch" style="flex:1;">
+            <span>👥</span> Switch
+          </button>
+          <button class="btn btn-secondary" id="btn-acc-logout" style="flex:1;color:var(--color-red);border-color:rgba(239,68,68,0.3);">
+            <span>🚪</span> Log Out
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close-btn" style="width:100%;">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Switch Player Account -->
   <div class="modal-overlay" id="switch-user-modal">

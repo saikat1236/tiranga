@@ -5,18 +5,58 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const jwt = require('jsonwebtoken');
+const { DBService } = require('./database');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data', 'store.json');
+const JWT_SECRET = process.env.JWT_SECRET || 'tiranga_jwt_secret_2026_super_key';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Helper to get formatted date sequence for Period ID (e.g. 202609250001)
+// JWT Token Generator
+function generateToken(user) {
+  return jwt.sign(
+    { userId: user.id, mobile: user.mobile, username: user.username, role: user.role || 'player' },
+    JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+}
+
+// Optional Auth Middleware (attaches req.user if token is present)
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  let token = null;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  } else if (req.body && req.body.token) {
+    token = req.body.token;
+  }
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const user = DBService.getUserById(decoded.userId);
+      if (user) {
+        req.user = user;
+      }
+    } catch (e) {
+      // Token invalid or expired - proceed as unauthenticated
+    }
+  }
+  next();
+}
+
+app.use(authMiddleware);
+
+// Helper to get formatted date sequence for Period ID (e.g. 202609260001)
 function getTodayString() {
   const d = new Date();
   const year = d.getFullYear();
@@ -25,118 +65,77 @@ function getTodayString() {
   return `${year}${month}${day}`;
 }
 
-// In-Memory Database with optional persistence
-const db = {
-  users: {
-    'demo_user': {
-      id: 'demo_user',
-      name: 'Player 8892',
-      mobile: '+91 98765 43210',
-      balance: 5000.00,
-      status: 'active', // 'active' | 'frozen'
-      createdAt: new Date().toISOString()
-    },
-    'user_rahul': {
-      id: 'user_rahul',
-      name: 'Rahul Sharma',
-      mobile: '+91 98111 22334',
-      balance: 2850.00,
-      status: 'active',
-      createdAt: new Date(Date.now() - 86400000 * 3).toISOString()
-    },
-    'user_priya': {
-      id: 'user_priya',
-      name: 'Priya Patel',
-      mobile: '+91 97222 33445',
-      balance: 14200.00,
-      status: 'active',
-      createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
-    },
-    'user_vikram': {
-      id: 'user_vikram',
-      name: 'Vikramaditya VIP',
-      mobile: '+91 99999 88888',
-      balance: 58000.00,
-      status: 'active',
-      createdAt: new Date(Date.now() - 86400000 * 10).toISOString()
-    },
-    'user_amit': {
-      id: 'user_amit',
-      name: 'Amit Kumar',
-      mobile: '+91 91234 56789',
-      balance: 120.00,
-      status: 'frozen',
-      createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
-    }
+// In-Memory Game State Manager for real-time 1s ticks and live exposures
+const games = {
+  'wingo_30': {
+    id: 'wingo_30',
+    name: 'Win Go 30s',
+    duration: 30,
+    lockDuration: 5,
+    currentPeriod: null,
+    sequence: 1,
+    remainingSeconds: 30,
+    status: 'OPEN', // 'OPEN' | 'LOCKED' | 'SETTLING'
+    activeBets: [],
+    controlMode: 'manual', // 'random' | 'manual' | 'min_payout' | 'max_payout'
+    manualOverrideNumber: null, // 0-9
+    history: []
   },
-  walletLedger: [],
-  userBets: [], // All bets placed by users with settlement results
-  // Current game states for each duration mode
-  games: {
-    'wingo_30': {
-      id: 'wingo_30',
-      name: 'Win Go 30s',
-      duration: 30,
-      lockDuration: 5,
-      currentPeriod: null,
-      sequence: 1,
-      remainingSeconds: 30,
-      status: 'OPEN', // 'OPEN' | 'LOCKED' | 'SETTLING'
-      activeBets: [],
-      // Admin control settings
-      controlMode: 'manual', // 'random' | 'manual' | 'min_payout' | 'max_payout'
-      manualOverrideNumber: null, // 0-9
-      history: []
-    },
-    'wingo_60': {
-      id: 'wingo_60',
-      name: 'Win Go 1Min',
-      duration: 60,
-      lockDuration: 5,
-      currentPeriod: null,
-      sequence: 1,
-      remainingSeconds: 60,
-      status: 'OPEN',
-      activeBets: [],
-      controlMode: 'manual',
-      manualOverrideNumber: 7, // Default demo forced outcome
-      history: []
-    },
-    'wingo_180': {
-      id: 'wingo_180',
-      name: 'Win Go 3Min',
-      duration: 180,
-      lockDuration: 10,
-      currentPeriod: null,
-      sequence: 1,
-      remainingSeconds: 180,
-      status: 'OPEN',
-      activeBets: [],
-      controlMode: 'random',
-      manualOverrideNumber: null,
-      history: []
-    },
-    'wingo_300': {
-      id: 'wingo_300',
-      name: 'Win Go 5Min',
-      duration: 300,
-      lockDuration: 10,
-      currentPeriod: null,
-      sequence: 1,
-      remainingSeconds: 300,
-      status: 'OPEN',
-      activeBets: [],
-      controlMode: 'random',
-      manualOverrideNumber: null,
-      history: []
-    }
+  'wingo_60': {
+    id: 'wingo_60',
+    name: 'Win Go 1Min',
+    duration: 60,
+    lockDuration: 5,
+    currentPeriod: null,
+    sequence: 1,
+    remainingSeconds: 60,
+    status: 'OPEN',
+    activeBets: [],
+    controlMode: 'manual',
+    manualOverrideNumber: 7, // Default demo forced outcome
+    history: []
   },
-  auditLogs: []
+  'wingo_180': {
+    id: 'wingo_180',
+    name: 'Win Go 3Min',
+    duration: 180,
+    lockDuration: 10,
+    currentPeriod: null,
+    sequence: 1,
+    remainingSeconds: 180,
+    status: 'OPEN',
+    activeBets: [],
+    controlMode: 'random',
+    manualOverrideNumber: null,
+    history: []
+  },
+  'wingo_300': {
+    id: 'wingo_300',
+    name: 'Win Go 5Min',
+    duration: 300,
+    lockDuration: 10,
+    currentPeriod: null,
+    sequence: 1,
+    remainingSeconds: 300,
+    status: 'OPEN',
+    activeBets: [],
+    controlMode: 'random',
+    manualOverrideNumber: null,
+    history: []
+  }
 };
 
-// Initial mock history generator to make charts rich and lively upon boot
+// Seed or load history from SQLite database
 function seedInitialHistory(gameKey) {
-  const game = db.games[gameKey];
+  const game = games[gameKey];
+  const existingHistory = DBService.getGameHistory(gameKey, 50);
+
+  if (existingHistory && existingHistory.length > 0) {
+    game.history = existingHistory;
+    game.sequence = existingHistory.length + 1;
+    return;
+  }
+
   const today = getTodayString();
   const seedCount = 15;
   
@@ -145,8 +144,8 @@ function seedInitialHistory(gameKey) {
     const periodId = `${today}${periodSeq}`;
     const num = Math.floor(Math.random() * 10);
     const outcome = getNumberProperties(num);
-
-    game.history.unshift({
+    const historyItem = {
+      gameKey,
       periodId,
       number: num,
       color: outcome.color,
@@ -156,7 +155,10 @@ function seedInitialHistory(gameKey) {
       totalPayout: Math.floor(Math.random() * 2000) + 400,
       settledAt: new Date(Date.now() - (seedCount - i) * game.duration * 1000).toISOString(),
       mode: 'random'
-    });
+    };
+
+    game.history.unshift(historyItem);
+    DBService.addGameHistory(historyItem);
   }
   game.sequence = seedCount + 1;
 }
@@ -192,7 +194,7 @@ function getNumberProperties(num) {
 
 // Initialize round for a game
 function startNewRound(gameKey) {
-  const game = db.games[gameKey];
+  const game = games[gameKey];
   const today = getTodayString();
   const periodSeq = String(game.sequence).padStart(4, '0');
   game.currentPeriod = `${today}${periodSeq}`;
@@ -200,8 +202,6 @@ function startNewRound(gameKey) {
   game.remainingSeconds = game.duration;
   game.status = 'OPEN';
   game.activeBets = [];
-  
-  // Note: we preserve game.manualOverrideNumber if admin set it, or it will be used once
 }
 
 // Calculate payouts for a given number outcome
@@ -294,7 +294,7 @@ function calculateOutcomePayouts(bets, winningNumber) {
 
 // Calculate the simulation exposure table for Admin
 function calculateAdminExposure(gameKey) {
-  const game = db.games[gameKey];
+  const game = games[gameKey];
   const bets = game.activeBets || [];
   
   let totalWagered = 0;
@@ -355,7 +355,7 @@ function calculateAdminExposure(gameKey) {
 
 // Settle round and determine outcome based on Admin rules
 function settleRound(gameKey) {
-  const game = db.games[gameKey];
+  const game = games[gameKey];
   game.status = 'SETTLING';
 
   let winningNumber = 0;
@@ -382,41 +382,42 @@ function settleRound(gameKey) {
   const settlement = calculateOutcomePayouts(game.activeBets, winningNumber);
   let totalWageredThisRound = 0;
 
-  // Process payouts & update wallets & ledgers
+  // Process payouts & update wallets & ledgers in SQLite Database
   settlement.settlementDetails.forEach(s => {
     totalWageredThisRound += s.amount;
-    const user = db.users[s.userId];
-    
-    // Update persisted bet record
-    const targetBet = db.userBets.find(b => b.id === s.betId);
-    if (targetBet) {
-      targetBet.status = s.isWin ? 'WON' : 'LOST';
-      targetBet.payout = s.payout;
-      targetBet.winningNumber = winningNumber;
-      targetBet.winningColor = settlement.properties.color;
-      targetBet.settledAt = new Date().toISOString();
-    }
 
-    if (user && s.isWin && s.payout > 0) {
-      user.balance = Math.round((user.balance + s.payout) * 100) / 100;
-      
-      // Double entry ledger for win payout
-      db.walletLedger.unshift({
-        id: uuidv4(),
-        userId: user.id,
-        type: 'PAYOUT_CREDIT',
-        amount: s.payout,
-        referenceId: game.currentPeriod,
-        description: `Win Payout on Period ${game.currentPeriod} (Option: ${s.option}, Winning Number: ${winningNumber})`,
-        balanceAfter: user.balance,
-        createdAt: new Date().toISOString()
-      });
+    // Update persisted bet record in SQLite
+    DBService.updateBetSettlement(s.betId, {
+      status: s.isWin ? 'WON' : 'LOST',
+      payout: s.payout,
+      winningNumber: winningNumber,
+      winningColor: settlement.properties.color,
+      winningSize: settlement.properties.size
+    });
+
+    if (s.isWin && s.payout > 0) {
+      const user = DBService.getUserById(s.userId);
+      if (user) {
+        const newBal = Math.round((user.balance + s.payout) * 100) / 100;
+        DBService.updateUserBalance(user.id, newBal);
+
+        // Record credit in ledger
+        DBService.addLedgerEntry({
+          userId: user.id,
+          type: 'PAYOUT_CREDIT',
+          amount: s.payout,
+          referenceId: game.currentPeriod,
+          description: `Win Payout on Period ${game.currentPeriod} (Option: ${s.option}, Winning Number: ${winningNumber})`,
+          balanceAfter: newBal
+        });
+      }
     }
   });
 
   const houseNet = Math.round((totalWageredThisRound - settlement.totalPayout) * 100) / 100;
 
   const historyItem = {
+    gameKey,
     periodId: game.currentPeriod,
     number: winningNumber,
     color: settlement.properties.color,
@@ -432,9 +433,11 @@ function settleRound(gameKey) {
   game.history.unshift(historyItem);
   if (game.history.length > 100) game.history.pop();
 
-  // Audit log for admin traceability
-  db.auditLogs.unshift({
-    id: uuidv4(),
+  // Save history to SQLite
+  DBService.addGameHistory(historyItem);
+
+  // Audit log saved to SQLite for admin traceability
+  const auditLogItem = {
     gameKey,
     periodId: game.currentPeriod,
     winningNumber,
@@ -446,7 +449,8 @@ function settleRound(gameKey) {
     determinationMethod,
     betsCount: game.activeBets.length,
     timestamp: new Date().toISOString()
-  });
+  };
+  DBService.addAuditLog(auditLogItem);
 
   // Notify WebSocket clients of the settlement result
   broadcast({
@@ -481,70 +485,53 @@ function initGameLoop() {
   });
 
   setInterval(() => {
-    ['wingo_30', 'wingo_60', 'wingo_180', 'wingo_300'].forEach(key => {
-      const game = db.games[key];
+    Object.keys(games).forEach(key => {
+      const game = games[key];
+      
+      if (game.status === 'SETTLING') return;
+
       game.remainingSeconds -= 1;
 
+      // Lock round in the last 5 seconds (prevent new bets)
       if (game.remainingSeconds <= game.lockDuration && game.status === 'OPEN') {
         game.status = 'LOCKED';
+        broadcast({
+          type: 'ROUND_LOCKED',
+          gameKey: key,
+          periodId: game.currentPeriod,
+          remainingSeconds: game.remainingSeconds
+        });
       }
 
+      // Settle round when counter reaches 0
       if (game.remainingSeconds <= 0) {
         settleRound(key);
-      }
-    });
-
-    // Broadcast tick state every second
-    broadcast({
-      type: 'TICK',
-      games: {
-        'wingo_30': {
-          periodId: db.games.wingo_30.currentPeriod,
-          remainingSeconds: db.games.wingo_30.remainingSeconds,
-          status: db.games.wingo_30.status,
-          activeBetsCount: db.games.wingo_30.activeBets.length,
-          controlMode: db.games.wingo_30.controlMode,
-          manualOverrideNumber: db.games.wingo_30.manualOverrideNumber
-        },
-        'wingo_60': {
-          periodId: db.games.wingo_60.currentPeriod,
-          remainingSeconds: db.games.wingo_60.remainingSeconds,
-          status: db.games.wingo_60.status,
-          activeBetsCount: db.games.wingo_60.activeBets.length,
-          controlMode: db.games.wingo_60.controlMode,
-          manualOverrideNumber: db.games.wingo_60.manualOverrideNumber
-        },
-        'wingo_180': {
-          periodId: db.games.wingo_180.currentPeriod,
-          remainingSeconds: db.games.wingo_180.remainingSeconds,
-          status: db.games.wingo_180.status,
-          activeBetsCount: db.games.wingo_180.activeBets.length,
-          controlMode: db.games.wingo_180.controlMode,
-          manualOverrideNumber: db.games.wingo_180.manualOverrideNumber
-        },
-        'wingo_300': {
-          periodId: db.games.wingo_300.currentPeriod,
-          remainingSeconds: db.games.wingo_300.remainingSeconds,
-          status: db.games.wingo_300.status,
-          activeBetsCount: db.games.wingo_300.activeBets.length,
-          controlMode: db.games.wingo_300.controlMode,
-          manualOverrideNumber: db.games.wingo_300.manualOverrideNumber
-        }
+      } else {
+        // Regular countdown tick
+        broadcast({
+          type: 'TICK',
+          gameKey: key,
+          periodId: game.currentPeriod,
+          remainingSeconds: game.remainingSeconds,
+          status: game.status
+        });
       }
     });
   }, 1000);
 }
 
 // WebSocket Connection Handler
-wss.on('connection', ws => {
-  // Send initial snapshot on connect
+wss.on('connection', (ws) => {
+  const defaultUser = DBService.getUserById('demo_user') || DBService.getAllUsersWithStats()[0];
+
+  // Send initial full system state to newly connected client
   ws.send(JSON.stringify({
     type: 'INIT_STATE',
-    games: db.games,
-    user: db.users['demo_user']
+    games: games,
+    user: DBService.formatUserStats(defaultUser)
   }));
 
-  ws.on('message', message => {
+  ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
       if (data.type === 'PING') {
@@ -556,24 +543,139 @@ wss.on('connection', ws => {
   });
 });
 
-// REST API Endpoints
+// ==========================================
+//           AUTHENTICATION APIS
+// ==========================================
+
+// 1. Sign Up / Register New User
+app.post(['/api/auth/register', '/api/auth/signup'], (req, res) => {
+  try {
+    const { name, mobile, password, username, initialBalance = 1000 } = req.body;
+
+    if (!mobile || !String(mobile).trim()) {
+      return res.status(400).json({ success: false, error: 'Mobile number is required' });
+    }
+
+    const cleanMobile = String(mobile).replace(/\D/g, '').slice(-10);
+    if (cleanMobile.length < 10) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid 10-digit mobile number' });
+    }
+
+    if (!password || String(password).length < 4) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 4 characters long' });
+    }
+
+    const existing = DBService.getUserByMobile(cleanMobile);
+    if (existing) {
+      return res.status(409).json({ success: false, error: 'An account with this mobile number already exists. Please log in.' });
+    }
+
+    const newUser = DBService.createUser({
+      name: name && name.trim() ? name.trim() : 'Player ' + cleanMobile.slice(-4),
+      mobile: cleanMobile,
+      username: username ? username.trim() : null,
+      password: String(password),
+      initialBalance: parseFloat(initialBalance) || 1000
+    });
+
+    const token = generateToken(newUser);
+
+    broadcast({
+      type: 'USERS_UPDATED',
+      users: DBService.getAllUsersWithStats()
+    });
+
+    res.json({
+      success: true,
+      message: 'Account created successfully! Welcome bonus credited to your wallet.',
+      token,
+      user: newUser
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Registration failed' });
+  }
+});
+
+// 2. Log In Existing User
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { identifier, mobile, username, password } = req.body;
+    const loginId = identifier || mobile || username;
+
+    if (!loginId || !password) {
+      return res.status(400).json({ success: false, error: 'Mobile number/username and password are required' });
+    }
+
+    const user = DBService.getUserByIdentifier(loginId);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Account not found. Please check your mobile or create an account.' });
+    }
+
+    const isValid = DBService.verifyPassword(user, String(password));
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Incorrect password. Please verify and try again.' });
+    }
+
+    const formattedUser = DBService.formatUserStats(user);
+    const token = generateToken(formattedUser);
+
+    res.json({
+      success: true,
+      message: 'Logged in successfully',
+      token,
+      user: formattedUser
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, error: 'Login failed' });
+  }
+});
+
+// 3. Get Current Authenticated User Profile
+app.get('/api/auth/me', (req, res) => {
+  const targetId = (req.user && req.user.id) || req.query.userId || 'demo_user';
+  const user = DBService.getUserById(targetId);
+
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  res.json({
+    success: true,
+    user: DBService.formatUserStats(user)
+  });
+});
+
+// 4. Log Out
+app.post('/api/auth/logout', (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// ==========================================
+//               GAME APIS
+// ==========================================
 
 // 1. Get full state
 app.get('/api/state', (req, res) => {
-  const userId = req.query.userId || 'demo_user';
-  const user = db.users[userId] || db.users['demo_user'];
+  const targetId = (req.user && req.user.id) || req.query.userId || 'demo_user';
+  let user = DBService.getUserById(targetId);
+  if (!user) {
+    user = DBService.getUserById('demo_user') || DBService.getAllUsersWithStats()[0];
+  }
   
   res.json({
     success: true,
-    user,
-    games: db.games
+    user: DBService.formatUserStats(user),
+    games: games
   });
 });
 
 // 2. Place Bet
 app.post('/api/bet', (req, res) => {
-  const { userId = 'demo_user', gameKey = 'wingo_60', option, amount } = req.body;
-  const game = db.games[gameKey];
+  const userId = (req.user && req.user.id) || req.body.userId || 'demo_user';
+  const { gameKey = 'wingo_60', option, amount } = req.body;
+  const game = games[gameKey];
 
   if (!game) {
     return res.status(400).json({ success: false, error: 'Invalid game mode' });
@@ -588,7 +690,7 @@ app.post('/api/bet', (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid bet amount. Minimum is ₹1' });
   }
 
-  const user = db.users[userId];
+  const user = DBService.getUserById(userId);
   if (!user) {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
@@ -601,8 +703,9 @@ app.post('/api/bet', (req, res) => {
     return res.status(400).json({ success: false, error: 'Insufficient wallet balance. Please recharge demo credits.' });
   }
 
-  // Deduct balance
-  user.balance = Math.round((user.balance - betAmount) * 100) / 100;
+  // Deduct balance in SQLite
+  const newBalance = Math.round((user.balance - betAmount) * 100) / 100;
+  DBService.updateUserBalance(user.id, newBalance);
 
   const betId = uuidv4();
   const betRecord = {
@@ -617,19 +720,20 @@ app.post('/api/bet', (req, res) => {
     placedAt: new Date().toISOString()
   };
 
+  // Add to active bets for round settlement
   game.activeBets.push(betRecord);
-  db.userBets.unshift(betRecord);
 
-  // Add to ledger
-  db.walletLedger.unshift({
-    id: uuidv4(),
+  // Persist bet in SQLite
+  DBService.createBet(betRecord);
+
+  // Add to double-entry ledger in SQLite
+  DBService.addLedgerEntry({
     userId: user.id,
     type: 'PREDICTION_DEBIT',
     amount: -betAmount,
     referenceId: game.currentPeriod,
     description: `Bet on Period ${game.currentPeriod} - Option: ${option}`,
-    balanceAfter: user.balance,
-    createdAt: new Date().toISOString()
+    balanceAfter: newBalance
   });
 
   // Broadcast bet placed event (admin live dashboard sees this immediately)
@@ -643,184 +747,177 @@ app.post('/api/bet', (req, res) => {
   res.json({
     success: true,
     bet: betRecord,
-    newBalance: user.balance
+    newBalance: newBalance
   });
 });
 
 // 3. User Wallet Recharge
 app.post('/api/wallet/recharge', (req, res) => {
-  const { userId = 'demo_user', amount = 1000 } = req.body;
-  const user = db.users[userId];
+  const userId = (req.user && req.user.id) || req.body.userId || 'demo_user';
+  const { amount = 1000 } = req.body;
+  const user = DBService.getUserById(userId);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
   const addAmount = Math.max(1, parseFloat(amount));
-  user.balance = Math.round((user.balance + addAmount) * 100) / 100;
+  const newBalance = Math.round((user.balance + addAmount) * 100) / 100;
 
-  db.walletLedger.unshift({
-    id: uuidv4(),
+  DBService.updateUserBalance(user.id, newBalance);
+
+  DBService.addLedgerEntry({
     userId: user.id,
     type: 'DEMO_CREDIT',
     amount: addAmount,
     referenceId: 'TOPUP_' + Date.now(),
     description: `Demo Wallet Recharge +₹${addAmount}`,
-    balanceAfter: user.balance,
-    createdAt: new Date().toISOString()
+    balanceAfter: newBalance
   });
+
+  const updatedUser = DBService.formatUserStats(DBService.getUserById(user.id));
 
   broadcast({
     type: 'USER_UPDATED',
-    user
+    user: updatedUser
   });
 
-  res.json({ success: true, balance: user.balance });
+  res.json({ success: true, balance: newBalance, user: updatedUser });
 });
 
 // 4. Get User Bet History
 app.get('/api/bets/my', (req, res) => {
-  const userId = req.query.userId || 'demo_user';
+  const userId = (req.user && req.user.id) || req.query.userId || 'demo_user';
   const gameKey = req.query.gameKey;
-  let bets = db.userBets.filter(b => b.userId === userId);
-  if (gameKey) {
-    bets = bets.filter(b => b.gameKey === gameKey);
-  }
+  const bets = DBService.getUserBets(userId, gameKey, 50);
+
   res.json({
     success: true,
-    bets: bets.slice(0, 50)
+    bets: bets.map(b => ({
+      id: b.id,
+      userId: b.user_id,
+      gameKey: b.game_key,
+      periodId: b.period_id,
+      option: b.option,
+      amount: b.amount,
+      status: b.status,
+      payout: b.payout,
+      winningNumber: b.winning_number,
+      winningColor: b.winning_color,
+      winningSize: b.winning_size,
+      placedAt: b.placed_at,
+      settledAt: b.settled_at
+    }))
   });
 });
 
 // 5. Get User Wallet Ledger
 app.get('/api/wallet/ledger', (req, res) => {
-  const userId = req.query.userId || 'demo_user';
-  const userLedger = db.walletLedger.filter(l => l.userId === userId);
-  res.json({ success: true, ledger: userLedger });
+  const userId = (req.user && req.user.id) || req.query.userId || 'demo_user';
+  const ledger = DBService.getUserLedger(userId, 50);
+
+  res.json({
+    success: true,
+    ledger: ledger.map(l => ({
+      id: l.id,
+      userId: l.user_id,
+      type: l.type,
+      amount: l.amount,
+      referenceId: l.reference_id,
+      description: l.description,
+      balanceAfter: l.balance_after,
+      createdAt: l.created_at
+    }))
+  });
 });
 
 // ==========================================
 //           USER MANAGEMENT APIS
 // ==========================================
 
-// Helper to format user with financial statistics
-function formatUserStats(u) {
-  const bets = db.userBets.filter(b => b.userId === u.id);
-  const totalWagered = bets.reduce((sum, b) => sum + b.amount, 0);
-  const totalWon = bets.filter(b => b.status === 'WON').reduce((sum, b) => sum + b.payout, 0);
-  const netProfit = Math.round((totalWon - totalWagered) * 100) / 100;
-  return {
-    ...u,
-    totalBetsCount: bets.length,
-    totalWagered: Math.round(totalWagered * 100) / 100,
-    totalWon: Math.round(totalWon * 100) / 100,
-    netProfit: netProfit
-  };
-}
-
 // 1. Get all users
 app.get('/api/users', (req, res) => {
-  const usersList = Object.values(db.users).map(formatUserStats);
+  const usersList = DBService.getAllUsersWithStats();
   res.json({ success: true, users: usersList });
 });
 
 // Admin compatibility route
 app.get('/api/admin/users', (req, res) => {
-  const usersList = Object.values(db.users).map(formatUserStats);
+  const usersList = DBService.getAllUsersWithStats();
   res.json({ success: true, users: usersList });
 });
 
 // 2. Get single user details with full bets & ledger
 app.get('/api/users/:id', (req, res) => {
-  const user = db.users[req.params.id];
+  const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
-  const userBets = db.userBets.filter(b => b.userId === user.id).slice(0, 50);
-  const userLedger = db.walletLedger.filter(l => l.userId === user.id).slice(0, 50);
+  const userBets = DBService.getUserBets(user.id, null, 50);
+  const userLedger = DBService.getUserLedger(user.id, 50);
 
   res.json({
     success: true,
-    user: formatUserStats(user),
+    user: DBService.formatUserStats(user),
     bets: userBets,
     ledger: userLedger
   });
 });
 
-// 3. Create new user
+// 3. Create new user (Admin)
 app.post('/api/users', (req, res) => {
-  const { name, mobile, initialBalance = 1000 } = req.body;
+  const { name, mobile, initialBalance = 1000, password = 'password123' } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, error: 'Name is required' });
   }
 
-  const userId = 'user_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+  const cleanMobile = mobile ? String(mobile).replace(/\D/g, '').slice(-10) : '9' + Math.floor(100000000 + Math.random() * 900000000);
   const balance = Math.max(0, parseFloat(initialBalance) || 0);
 
-  const newUser = {
-    id: userId,
+  const newUser = DBService.createUser({
     name: name.trim(),
-    mobile: mobile ? mobile.trim() : '+91 9' + Math.floor(100000000 + Math.random() * 900000000),
-    balance: balance,
-    status: 'active',
-    createdAt: new Date().toISOString()
-  };
-
-  db.users[userId] = newUser;
-
-  if (balance > 0) {
-    db.walletLedger.unshift({
-      id: uuidv4(),
-      userId: newUser.id,
-      type: 'DEMO_CREDIT',
-      amount: balance,
-      referenceId: 'WELCOME_' + Date.now(),
-      description: `Welcome Initial Demo Balance +₹${balance}`,
-      balanceAfter: balance,
-      createdAt: new Date().toISOString()
-    });
-  }
+    mobile: cleanMobile,
+    password: String(password),
+    initialBalance: balance
+  });
 
   broadcast({
     type: 'USERS_UPDATED',
-    users: Object.values(db.users).map(formatUserStats)
+    users: DBService.getAllUsersWithStats()
   });
 
-  res.json({ success: true, user: formatUserStats(newUser) });
+  res.json({ success: true, user: newUser });
 });
 
 // 4. Update user info (name, mobile, status)
 app.put('/api/users/:id', (req, res) => {
-  const user = db.users[req.params.id];
+  const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
   const { name, mobile, status } = req.body;
-  if (name) user.name = name.trim();
-  if (mobile) user.mobile = mobile.trim();
-  if (status && ['active', 'frozen'].includes(status)) user.status = status;
+  const updated = DBService.updateUserProfile(req.params.id, { name, mobile, status });
+  const formatted = DBService.formatUserStats(updated);
 
   broadcast({
     type: 'USER_UPDATED',
-    user: formatUserStats(user)
+    user: formatted
   });
 
-  res.json({ success: true, user: formatUserStats(user) });
+  res.json({ success: true, user: formatted });
 });
 
 // 5. Toggle or set user status (Freeze / Unfreeze)
 app.post('/api/users/:id/status', (req, res) => {
-  const user = db.users[req.params.id];
+  const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
   const { status } = req.body;
-  if (status) {
-    user.status = status;
-  } else {
-    user.status = user.status === 'active' ? 'frozen' : 'active';
-  }
+  const newStatus = status || (user.status === 'active' ? 'frozen' : 'active');
+  const updated = DBService.updateUserStatus(req.params.id, newStatus);
+  const formatted = DBService.formatUserStats(updated);
 
   broadcast({
     type: 'USER_UPDATED',
-    user: formatUserStats(user)
+    user: formatted
   });
 
-  res.json({ success: true, user: formatUserStats(user) });
+  res.json({ success: true, user: formatted });
 });
 
 // 6. Delete user
@@ -830,111 +927,24 @@ app.delete('/api/users/:id', (req, res) => {
     return res.status(400).json({ success: false, error: 'Cannot delete the primary demo user' });
   }
 
-  if (!db.users[userId]) {
+  const user = DBService.getUserById(userId);
+  if (!user) {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
 
-  delete db.users[userId];
+  DBService.deleteUser(userId);
 
   broadcast({
     type: 'USERS_UPDATED',
-    users: Object.values(db.users).map(formatUserStats)
+    users: DBService.getAllUsersWithStats()
   });
 
   res.json({ success: true, message: 'User deleted successfully' });
 });
 
-// Admin: Get live exposure simulation for current round
-app.get('/api/admin/exposure', (req, res) => {
-  const gameKey = req.query.gameKey || 'wingo_60';
-  const exposure = calculateAdminExposure(gameKey);
-  res.json({ success: true, exposure });
-});
-
-// Admin: Set game control mode (random / manual / min_payout / max_payout)
-app.post('/api/admin/set-mode', (req, res) => {
-  const { gameKey = 'wingo_60', mode } = req.body;
-  const game = db.games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  if (!['random', 'manual', 'min_payout', 'max_payout'].includes(mode)) {
-    return res.status(400).json({ success: false, error: 'Invalid mode' });
-  }
-
-  game.controlMode = mode;
-
-  broadcast({
-    type: 'ADMIN_MODE_CHANGED',
-    gameKey,
-    controlMode: game.controlMode,
-    manualOverrideNumber: game.manualOverrideNumber
-  });
-
-  res.json({ success: true, controlMode: game.controlMode, manualOverrideNumber: game.manualOverrideNumber });
-});
-
-// Admin: Force exact winning number for next settlement
-app.post('/api/admin/set-outcome', (req, res) => {
-  const { gameKey = 'wingo_60', winningNumber } = req.body;
-  const game = db.games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  if (winningNumber === null || winningNumber === undefined || winningNumber === '') {
-    game.manualOverrideNumber = null;
-  } else {
-    const num = parseInt(winningNumber, 10);
-    if (isNaN(num) || num < 0 || num > 9) {
-      return res.status(400).json({ success: false, error: 'Number must be between 0 and 9' });
-    }
-    game.manualOverrideNumber = num;
-    game.controlMode = 'manual';
-  }
-
-  broadcast({
-    type: 'ADMIN_OUTCOME_PRESET',
-    gameKey,
-    controlMode: game.controlMode,
-    manualOverrideNumber: game.manualOverrideNumber
-  });
-
-  res.json({
-    success: true,
-    gameKey,
-    periodId: game.currentPeriod,
-    manualOverrideNumber: game.manualOverrideNumber,
-    properties: game.manualOverrideNumber !== null ? getNumberProperties(game.manualOverrideNumber) : null
-  });
-});
-
-// Admin: Force settle round right now
-app.post('/api/admin/force-settle', (req, res) => {
-  const { gameKey = 'wingo_60' } = req.body;
-  const game = db.games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  settleRound(gameKey);
-
-  res.json({ success: true, message: 'Round force settled successfully!' });
-});
-
-// Admin: Speed up timer (sets remaining to 5 seconds to test lock and settle quickly)
-app.post('/api/admin/speed-timer', (req, res) => {
-  const { gameKey = 'wingo_60', seconds = 6 } = req.body;
-  const game = db.games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  game.remainingSeconds = Math.max(1, parseInt(seconds, 10));
-  res.json({ success: true, remainingSeconds: game.remainingSeconds });
-});
-
-// Admin: Dedicated route to serve admin page
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// Admin: Adjust user balance by user ID
+// 7. Adjust user balance by user ID
 app.post('/api/users/:id/adjust-balance', (req, res) => {
-  const user = db.users[req.params.id];
+  const user = DBService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
   const { action = 'set', amount = 0, reason = 'Admin Balance Adjustment' } = req.body;
@@ -963,20 +973,18 @@ app.post('/api/users/:id/adjust-balance', (req, res) => {
     ledgerType = diff >= 0 ? 'DEMO_CREDIT' : 'REVERSAL';
   }
 
-  user.balance = newBal;
+  DBService.updateUserBalance(user.id, newBal);
 
-  db.walletLedger.unshift({
-    id: uuidv4(),
+  DBService.addLedgerEntry({
     userId: user.id,
     type: ledgerType,
     amount: diff,
     referenceId: 'ADMIN_ADJ_' + Date.now(),
     description: `${reason} (${diff >= 0 ? '+' : ''}₹${diff})`,
-    balanceAfter: user.balance,
-    createdAt: new Date().toISOString()
+    balanceAfter: newBal
   });
 
-  const formatted = formatUserStats(user);
+  const formatted = DBService.formatUserStats(DBService.getUserById(user.id));
   broadcast({
     type: 'USER_UPDATED',
     user: formatted
@@ -985,28 +993,27 @@ app.post('/api/users/:id/adjust-balance', (req, res) => {
   res.json({ success: true, user: formatted });
 });
 
-// Admin: Adjust user balance directly (legacy endpoint)
+// 8. Admin: Adjust user balance directly (legacy endpoint)
 app.post('/api/admin/adjust-balance', (req, res) => {
   const { userId = 'demo_user', newBalance, reason = 'Admin Balance Adjustment' } = req.body;
-  const user = db.users[userId];
+  const user = DBService.getUserById(userId);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
   const targetBal = Math.max(0, parseFloat(newBalance));
   const diff = Math.round((targetBal - user.balance) * 100) / 100;
-  user.balance = targetBal;
 
-  db.walletLedger.unshift({
-    id: uuidv4(),
+  DBService.updateUserBalance(user.id, targetBal);
+
+  DBService.addLedgerEntry({
     userId: user.id,
     type: diff >= 0 ? 'DEMO_CREDIT' : 'REVERSAL',
     amount: diff,
     referenceId: 'ADMIN_ADJ_' + Date.now(),
     description: `${reason} (${diff >= 0 ? '+' : ''}₹${diff})`,
-    balanceAfter: user.balance,
-    createdAt: new Date().toISOString()
+    balanceAfter: targetBal
   });
 
-  const formatted = formatUserStats(user);
+  const formatted = DBService.formatUserStats(DBService.getUserById(user.id));
   broadcast({
     type: 'USER_UPDATED',
     user: formatted
@@ -1015,9 +1022,76 @@ app.post('/api/admin/adjust-balance', (req, res) => {
   res.json({ success: true, user: formatted });
 });
 
+// ==========================================
+//                ADMIN APIS
+// ==========================================
+
+// Admin: Get live exposure simulation for current round
+app.get('/api/admin/exposure', (req, res) => {
+  const gameKey = req.query.gameKey || 'wingo_60';
+  const exposure = calculateAdminExposure(gameKey);
+  res.json({ success: true, exposure });
+});
+
+// Admin: Set game control mode (random / manual / min_payout / max_payout)
+app.post('/api/admin/set-mode', (req, res) => {
+  const { gameKey = 'wingo_60', mode } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  if (!['random', 'manual', 'min_payout', 'max_payout'].includes(mode)) {
+    return res.status(400).json({ success: false, error: 'Invalid mode' });
+  }
+
+  game.controlMode = mode;
+  res.json({ success: true, mode: game.controlMode });
+});
+
+// Admin: Set exact winning number for next settlement (Manual Override)
+app.post('/api/admin/set-outcome', (req, res) => {
+  const { gameKey = 'wingo_60', winningNumber } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  const num = parseInt(winningNumber, 10);
+  if (isNaN(num) || num < 0 || num > 9) {
+    game.manualOverrideNumber = null;
+    return res.json({ success: true, manualOverrideNumber: null, message: 'Manual override cleared' });
+  }
+
+  game.manualOverrideNumber = num;
+  res.json({ success: true, manualOverrideNumber: num, message: `Next round forced to number ${num}` });
+});
+
+// Admin: Force immediate settlement of current period
+app.post('/api/admin/force-settle', (req, res) => {
+  const { gameKey = 'wingo_60' } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  settleRound(gameKey);
+  res.json({ success: true, message: 'Round settled immediately' });
+});
+
+// Admin: Speed up timer (sets remaining to 5 seconds to test lock and settle quickly)
+app.post('/api/admin/speed-timer', (req, res) => {
+  const { gameKey = 'wingo_60', seconds = 6 } = req.body;
+  const game = games[gameKey];
+  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+
+  game.remainingSeconds = Math.max(1, parseInt(seconds, 10));
+  res.json({ success: true, remainingSeconds: game.remainingSeconds });
+});
+
+// Admin: Dedicated route to serve admin page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // Admin: Get Audit logs
 app.get('/api/admin/audit-logs', (req, res) => {
-  res.json({ success: true, auditLogs: db.auditLogs });
+  const logs = DBService.getAuditLogs(100);
+  res.json({ success: true, auditLogs: logs });
 });
 
 // Start Server

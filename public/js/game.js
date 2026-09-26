@@ -148,20 +148,29 @@ class GameController {
       });
     }
 
-    // Account Switcher Triggers
+    // Authentication & Account Triggers
+    const openAuthBtn = document.getElementById('btn-open-auth-modal');
+    if (openAuthBtn) {
+      openAuthBtn.addEventListener('click', () => {
+        this.openAuthModal('login');
+      });
+    }
+
     const openUserSwitcherBtn = document.getElementById('btn-open-user-switcher');
     if (openUserSwitcherBtn) {
       openUserSwitcherBtn.addEventListener('click', () => {
-        this.openUserSwitcher();
+        this.openAccountModal();
       });
     }
 
     const heroSwitchUserBtn = document.getElementById('btn-hero-switch-user');
     if (heroSwitchUserBtn) {
       heroSwitchUserBtn.addEventListener('click', () => {
-        this.openUserSwitcher();
+        this.openAccountModal();
       });
     }
+
+    this.initAuthControls();
 
     const quickCreateBtn = document.getElementById('btn-quick-create-user');
     if (quickCreateBtn) {
@@ -173,9 +182,9 @@ class GameController {
           return;
         }
         try {
-          const res = await window.api.createUser({ name, initialBalance: 5000 });
+          const res = await window.api.createUser({ name, initialBalance: 1000 });
           if (res.success) {
-            window.showToast(`Player account "${name}" created with ₹5,000 demo credits!`, 'success');
+            window.showToast(`Player account "${name}" created with ₹1,000 demo credits!`, 'success');
             if (input) input.value = '';
             await this.switchUser(res.user.id);
           }
@@ -265,6 +274,7 @@ class GameController {
     const nameEl = document.getElementById('header-user-name');
     const heroIdEl = document.getElementById('player-user-id');
     const frozenBanner = document.getElementById('frozen-account-banner');
+    const headerAuthBtnText = document.getElementById('header-auth-btn-text');
 
     if (walletPill) walletPill.textContent = balFormatted;
     if (heroBal) heroBal.textContent = balFormatted;
@@ -274,6 +284,264 @@ class GameController {
 
     if (frozenBanner) {
       frozenBanner.style.display = user.status === 'frozen' ? 'flex' : 'none';
+    }
+
+    if (headerAuthBtnText) {
+      headerAuthBtnText.textContent = window.api.token ? 'Account' : 'Sign In';
+    }
+
+    // Populate Account Modal
+    const accAvatar = document.getElementById('acc-modal-avatar');
+    const accName = document.getElementById('acc-modal-name');
+    const accMobile = document.getElementById('acc-modal-mobile');
+    const accId = document.getElementById('acc-modal-id');
+    const accBalance = document.getElementById('acc-modal-balance');
+    const accBets = document.getElementById('acc-modal-bets');
+    const accWon = document.getElementById('acc-modal-won');
+
+    if (accAvatar) accAvatar.textContent = (user.name || 'P')[0].toUpperCase();
+    if (accName) accName.textContent = user.name || user.id;
+    if (accMobile) accMobile.textContent = user.mobile ? `+91 ${user.mobile}` : 'Verified Account';
+    if (accId) accId.textContent = user.id;
+    if (accBalance) accBalance.textContent = balFormatted;
+    if (accBets) accBets.textContent = user.totalBetsCount !== undefined ? user.totalBetsCount : 0;
+    if (accWon) accWon.textContent = `₹${parseFloat(user.totalWon || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  }
+
+  openAuthModal(initialTab = 'login') {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+
+    this.switchAuthTab(initialTab);
+    modal.classList.add('open');
+  }
+
+  switchAuthTab(tab) {
+    const loginTabBtn = document.getElementById('tab-auth-login');
+    const registerTabBtn = document.getElementById('tab-auth-register');
+    const loginForm = document.getElementById('form-auth-login');
+    const registerForm = document.getElementById('form-auth-register');
+    const modalTitle = document.getElementById('auth-modal-title');
+    const footerText = document.getElementById('auth-footer-text');
+
+    if (tab === 'login') {
+      if (loginTabBtn) loginTabBtn.classList.add('active');
+      if (registerTabBtn) registerTabBtn.classList.remove('active');
+      if (loginForm) loginForm.style.display = 'block';
+      if (registerForm) registerForm.style.display = 'none';
+      if (modalTitle) modalTitle.textContent = 'Member Sign In';
+      if (footerText) {
+        footerText.innerHTML = `Don't have an account? <a href="#" id="link-switch-to-register" style="color:#fbbf24;font-weight:700;">Sign up now</a>`;
+        const link = document.getElementById('link-switch-to-register');
+        if (link) link.addEventListener('click', (e) => { e.preventDefault(); this.switchAuthTab('register'); });
+      }
+    } else {
+      if (loginTabBtn) loginTabBtn.classList.remove('active');
+      if (registerTabBtn) registerTabBtn.classList.add('active');
+      if (loginForm) loginForm.style.display = 'none';
+      if (registerForm) registerForm.style.display = 'block';
+      if (modalTitle) modalTitle.textContent = 'Create New Account';
+      if (footerText) {
+        footerText.innerHTML = `Already have an account? <a href="#" id="link-switch-to-login" style="color:#fbbf24;font-weight:700;">Log in here</a>`;
+        const link = document.getElementById('link-switch-to-login');
+        if (link) link.addEventListener('click', (e) => { e.preventDefault(); this.switchAuthTab('login'); });
+      }
+    }
+  }
+
+  async openAccountModal() {
+    const modal = document.getElementById('account-modal');
+    if (modal) {
+      if (this.userState) {
+        this.renderUserState(this.userState);
+      }
+      modal.classList.add('open');
+
+      try {
+        const res = await window.api.getProfile();
+        if (res.success && res.user) {
+          this.renderUserState(res.user);
+        }
+      } catch (e) {}
+    }
+  }
+
+  initAuthControls() {
+    const loginTabBtn = document.getElementById('tab-auth-login');
+    const registerTabBtn = document.getElementById('tab-auth-register');
+
+    if (loginTabBtn) {
+      loginTabBtn.addEventListener('click', () => this.switchAuthTab('login'));
+    }
+    if (registerTabBtn) {
+      registerTabBtn.addEventListener('click', () => this.switchAuthTab('register'));
+    }
+
+    const toggleLoginPass = document.getElementById('btn-toggle-login-pass');
+    if (toggleLoginPass) {
+      toggleLoginPass.addEventListener('click', () => {
+        const input = document.getElementById('login-password');
+        if (input) {
+          input.type = input.type === 'password' ? 'text' : 'password';
+          toggleLoginPass.textContent = input.type === 'password' ? '👁️' : '🙈';
+        }
+      });
+    }
+
+    const toggleRegPass = document.getElementById('btn-toggle-reg-pass');
+    if (toggleRegPass) {
+      toggleRegPass.addEventListener('click', () => {
+        const input = document.getElementById('register-password');
+        if (input) {
+          input.type = input.type === 'password' ? 'text' : 'password';
+          toggleRegPass.textContent = input.type === 'password' ? '👁️' : '🙈';
+        }
+      });
+    }
+
+    const loginForm = document.getElementById('form-auth-login');
+    if (loginForm) {
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const identInput = document.getElementById('login-identifier');
+        const passInput = document.getElementById('login-password');
+        const identifier = identInput ? identInput.value.trim() : '';
+        const password = passInput ? passInput.value : '';
+
+        if (!identifier || !password) {
+          window.showToast('Please enter your mobile/username and password', 'error');
+          return;
+        }
+
+        const submitBtn = document.getElementById('btn-submit-login');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Logging in...';
+        }
+
+        try {
+          const res = await window.api.login(identifier, password);
+          if (res.success && res.user) {
+            this.renderUserState(res.user);
+            window.soundCtrl.playClick();
+            window.showToast(`Welcome back, ${res.user.name}!`, 'success');
+            document.getElementById('auth-modal').classList.remove('open');
+            if (passInput) passInput.value = '';
+            if (this.activeTab === 'mybets') this.renderMyBets();
+            if (this.activeTab === 'ledger') this.renderLedger();
+          } else {
+            window.showToast(res.error || 'Login failed', 'error');
+          }
+        } catch (err) {
+          window.showToast('Server communication error', 'error');
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Log In to Play';
+          }
+        }
+      });
+    }
+
+    const registerForm = document.getElementById('form-auth-register');
+    if (registerForm) {
+      registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nameInput = document.getElementById('register-name');
+        const mobileInput = document.getElementById('register-mobile');
+        const passInput = document.getElementById('register-password');
+
+        const name = nameInput ? nameInput.value.trim() : '';
+        const mobile = mobileInput ? mobileInput.value.trim() : '';
+        const password = passInput ? passInput.value : '';
+
+        if (!mobile || !password) {
+          window.showToast('Mobile number and password are required', 'error');
+          return;
+        }
+
+        const submitBtn = document.getElementById('btn-submit-register');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Creating Account...';
+        }
+
+        try {
+          const res = await window.api.signup({ name, mobile, password, initialBalance: 1000 });
+          if (res.success && res.user) {
+            this.renderUserState(res.user);
+            window.soundCtrl.playWin();
+            window.showToast(`Account created! Instant ₹1,000 bonus credited!`, 'success');
+            document.getElementById('auth-modal').classList.remove('open');
+            if (registerForm) registerForm.reset();
+            if (this.activeTab === 'mybets') this.renderMyBets();
+            if (this.activeTab === 'ledger') this.renderLedger();
+          } else {
+            window.showToast(res.error || 'Registration failed', 'error');
+          }
+        } catch (err) {
+          window.showToast('Server error during registration', 'error');
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create Account & Get ₹1,000 Bonus';
+          }
+        }
+      });
+    }
+
+    // Demo Instant Login Chips
+    document.querySelectorAll('.demo-account-chip[data-login]').forEach(chip => {
+      chip.addEventListener('click', async () => {
+        const login = chip.dataset.login;
+        const pass = chip.dataset.pass;
+        const identInput = document.getElementById('login-identifier');
+        const passInput = document.getElementById('login-password');
+        if (identInput) identInput.value = login;
+        if (passInput) passInput.value = pass;
+
+        try {
+          const res = await window.api.login(login, pass);
+          if (res.success && res.user) {
+            this.renderUserState(res.user);
+            window.soundCtrl.playClick();
+            window.showToast(`Logged in as: ${res.user.name}`, 'success');
+            document.getElementById('auth-modal').classList.remove('open');
+            if (this.activeTab === 'mybets') this.renderMyBets();
+            if (this.activeTab === 'ledger') this.renderLedger();
+          } else {
+            window.showToast(res.error || 'Demo login failed', 'error');
+          }
+        } catch (e) {
+          window.showToast('Demo login error', 'error');
+        }
+      });
+    });
+
+    const btnAccRecharge = document.getElementById('btn-acc-recharge');
+    if (btnAccRecharge) {
+      btnAccRecharge.addEventListener('click', () => {
+        document.getElementById('account-modal').classList.remove('open');
+        document.getElementById('recharge-modal').classList.add('open');
+      });
+    }
+
+    const btnAccSwitch = document.getElementById('btn-acc-switch');
+    if (btnAccSwitch) {
+      btnAccSwitch.addEventListener('click', () => {
+        document.getElementById('account-modal').classList.remove('open');
+        this.openUserSwitcher();
+      });
+    }
+
+    const btnAccLogout = document.getElementById('btn-acc-logout');
+    if (btnAccLogout) {
+      btnAccLogout.addEventListener('click', () => {
+        document.getElementById('account-modal').classList.remove('open');
+        window.api.logout();
+        window.showToast('You have been logged out', 'info');
+        this.openAuthModal('login');
+      });
     }
   }
 

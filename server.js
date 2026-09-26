@@ -1239,7 +1239,18 @@ app.post('/api/admin/adjust-balance', adminAuth, (req, res) => {
 });
 
 // Start Server
-initGameLoop();
-server.listen(PORT, () => {
-  console.log(`🚀 Tiranga Colour Prediction App server running at http://localhost:${PORT}`);
-});
+async function startServer() {
+  if (DBService.init) {
+    try {
+      await DBService.init();
+    } catch (e) {
+      console.error('Database initialization warning:', e);
+    }
+  }
+  initGameLoop();
+  server.listen(PORT, () => {
+    console.log(`🚀 Tiranga Colour Prediction App server running at http://localhost:${PORT}`);
+  });
+}
+
+startServer();

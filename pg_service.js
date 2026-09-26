@@ -5,17 +5,49 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
+// Helper to normalize Supabase direct URLs to IPv4 pooler URLs
+// Render free tier only supports IPv4 egress; Supabase direct db.*.supabase.co resolves to IPv6 (causing ENETUNREACH).
+function normalizePostgresUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    const match = parsed.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
+    if (match) {
+      const projectRef = match[1];
+      parsed.hostname = 'aws-0-ap-south-1.pooler.supabase.com';
+      parsed.port = '5432';
+      if (!parsed.username.includes('.')) {
+        parsed.username = `postgres.${projectRef}`;
+      }
+      console.log(`🔄 Automatically converted Supabase direct IPv6 endpoint to IPv4 Pooler: ${parsed.hostname}`);
+      return parsed.toString();
+    }
+  } catch (e) {
+    // If not parseable, return original
+  }
+  return rawUrl;
+}
+
+const rawConnectionString = process.env.DATABASE_URL;
+if (!rawConnectionString) {
   throw new Error('DATABASE_URL environment variable is required for pg_service');
 }
+
+const connectionString = normalizePostgresUrl(rawConnectionString);
+
+try {
+  const host = new URL(connectionString).hostname;
+  console.log(`🔌 Initializing PostgreSQL pool to: ${host}`);
+} catch (_) {}
 
 const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
+  max: 10,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 });
 
 pool.on('error', (err) => {
@@ -243,10 +275,22 @@ async function loadCacheFromDatabase() {
   }
 }
 
+let initPromise = null;
+function init() {
+  if (!initPromise) {
+    initPromise = loadCacheFromDatabase();
+  }
+  return initPromise;
+}
+
 // Initial async cache load
-loadCacheFromDatabase();
+init();
 
 const DBService = {
+  init() {
+    return init();
+  },
+
   // Users
   getUserById(id) {
     if (!id) return null;

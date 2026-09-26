@@ -198,6 +198,23 @@ class AdminController {
     if (adminGameSelect) {
       adminGameSelect.addEventListener('change', (e) => {
         this.currentGameKey = e.target.value;
+        if (this.allGamesState && this.allGamesState[this.currentGameKey]) {
+          const g = this.allGamesState[this.currentGameKey];
+          const periodEl = document.getElementById('admin-live-period');
+          const timerEl = document.getElementById('admin-live-timer');
+          if (periodEl) periodEl.textContent = g.periodId || g.currentPeriod || '--';
+          if (timerEl) {
+            const safeSec = Math.max(0, parseInt(g.remainingSeconds, 10) || 0);
+            const min = Math.floor(safeSec / 60);
+            const sec = safeSec % 60;
+            timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+          }
+          if (g.controlMode) {
+            this.controlMode = g.controlMode;
+            this.manualOverrideNumber = g.manualOverrideNumber;
+            this.renderControlModeState();
+          }
+        }
         this.loadExposure();
       });
     }
@@ -399,8 +416,31 @@ class AdminController {
   }
 
   updateFromTick(tickData) {
-    if (!tickData.games) return;
-    const game = tickData.games[this.currentGameKey];
+    let gamesMap = tickData.games;
+    if (!gamesMap && tickData.gameKey) {
+      gamesMap = { [tickData.gameKey]: tickData };
+    }
+    if (!gamesMap) return;
+
+    this.allGamesState = gamesMap;
+
+    // Update game select options with live countdowns
+    const selectEl = document.getElementById('admin-game-select');
+    if (selectEl && selectEl.options) {
+      Array.from(selectEl.options).forEach(opt => {
+        const g = gamesMap[opt.value];
+        if (g) {
+          const safeSec = Math.max(0, parseInt(g.remainingSeconds, 10) || 0);
+          const m = Math.floor(safeSec / 60);
+          const s = safeSec % 60;
+          const timeStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          const baseName = g.name || (opt.value === 'wingo_30' ? 'Win Go 30s' : opt.value === 'wingo_60' ? 'Win Go 1Min' : opt.value === 'wingo_180' ? 'Win Go 3Min' : 'Win Go 5Min');
+          opt.textContent = `${baseName} (${timeStr})`;
+        }
+      });
+    }
+
+    const game = gamesMap[this.currentGameKey];
     if (!game) return;
 
     // Update banner period & countdown
@@ -408,18 +448,22 @@ class AdminController {
     const timerEl = document.getElementById('admin-live-timer');
     const betsCountEl = document.getElementById('admin-live-bets-count');
 
-    if (periodEl) periodEl.textContent = game.periodId;
+    if (periodEl) periodEl.textContent = game.periodId || game.currentPeriod;
     if (timerEl) {
-      const min = Math.floor(game.remainingSeconds / 60);
-      const sec = game.remainingSeconds % 60;
+      const safeSec = Math.max(0, parseInt(game.remainingSeconds, 10) || 0);
+      const min = Math.floor(safeSec / 60);
+      const sec = safeSec % 60;
       timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-      if (game.remainingSeconds <= 5) {
+      const lockSec = game.lockDuration || 5;
+      if (safeSec <= lockSec) {
         timerEl.classList.add('urgent');
       } else {
         timerEl.classList.remove('urgent');
       }
     }
-    if (betsCountEl) betsCountEl.textContent = game.activeBetsCount;
+    if (betsCountEl) {
+      betsCountEl.textContent = game.activeBetsCount !== undefined ? game.activeBetsCount : (game.activeBets ? game.activeBets.length : 0);
+    }
 
     // Update UI mode badges if changed
     if (game.controlMode !== this.controlMode || game.manualOverrideNumber !== this.manualOverrideNumber) {

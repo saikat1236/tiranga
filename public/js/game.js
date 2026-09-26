@@ -260,8 +260,46 @@ class GameController {
   }
 
   updateFromTick(tickData) {
-    if (!tickData.games) return;
-    const gameTick = tickData.games[this.currentGameKey];
+    let gamesMap = tickData.games;
+    if (!gamesMap && tickData.gameKey) {
+      gamesMap = { [tickData.gameKey]: tickData };
+    }
+    if (!gamesMap) return;
+
+    if (!this.gameState) this.gameState = {};
+    Object.keys(gamesMap).forEach(key => {
+      if (!this.gameState[key]) {
+        this.gameState[key] = { ...gamesMap[key] };
+      } else {
+        Object.assign(this.gameState[key], gamesMap[key]);
+      }
+    });
+
+    // Update tab mini-timers for all games simultaneously
+    Object.keys(gamesMap).forEach(key => {
+      const g = gamesMap[key];
+      const tabBtn = document.querySelector(`.game-tab-btn[data-game="${key}"]`);
+      if (tabBtn) {
+        let badge = tabBtn.querySelector('.tab-timer-badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'tab-timer-badge';
+          tabBtn.appendChild(badge);
+        }
+        const safeSec = Math.max(0, parseInt(g.remainingSeconds, 10) || 0);
+        const m = Math.floor(safeSec / 60);
+        const s = safeSec % 60;
+        badge.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        const lockSec = g.lockDuration || 5;
+        if (safeSec <= lockSec) {
+          badge.classList.add('urgent');
+        } else {
+          badge.classList.remove('urgent');
+        }
+      }
+    });
+
+    const gameTick = gamesMap[this.currentGameKey];
     if (!gameTick) return;
 
     // Update digital flip countdown
@@ -269,8 +307,8 @@ class GameController {
 
     // Update period number
     const periodEl = document.getElementById('current-period-num');
-    if (periodEl && gameTick.periodId) {
-      periodEl.textContent = gameTick.periodId;
+    if (periodEl && (gameTick.periodId || gameTick.currentPeriod)) {
+      periodEl.textContent = gameTick.periodId || gameTick.currentPeriod;
     }
 
     // Toggle locked overlay
@@ -278,11 +316,12 @@ class GameController {
     const headerCard = document.getElementById('round-header-card');
     const lockedNum = document.getElementById('locked-countdown-num');
 
-    if (gameTick.remainingSeconds <= 5) {
+    const lockThreshold = gameTick.lockDuration || 5;
+    if (gameTick.remainingSeconds <= lockThreshold) {
       if (boardEl) boardEl.classList.add('locked');
       if (headerCard) headerCard.classList.add('is-locked');
-      if (lockedNum) lockedNum.textContent = gameTick.remainingSeconds;
-      if (gameTick.remainingSeconds <= 5 && gameTick.remainingSeconds > 0) {
+      if (lockedNum) lockedNum.textContent = Math.max(0, gameTick.remainingSeconds);
+      if (gameTick.remainingSeconds > 0) {
         window.soundCtrl.playTick(400); // lower urgent pitch
       }
     } else {
@@ -293,8 +332,9 @@ class GameController {
   }
 
   renderCountdown(seconds, status) {
-    const min = Math.floor(seconds / 60);
-    const sec = seconds % 60;
+    const safeSec = Math.max(0, parseInt(seconds, 10) || 0);
+    const min = Math.floor(safeSec / 60);
+    const sec = safeSec % 60;
 
     const mStr = String(min).padStart(2, '0');
     const sStr = String(sec).padStart(2, '0');
@@ -587,12 +627,26 @@ class GameController {
     if (!game) return;
 
     const periodEl = document.getElementById('current-period-num');
-    if (periodEl) periodEl.textContent = game.currentPeriod;
+    if (periodEl) periodEl.textContent = game.currentPeriod || game.periodId || '--';
 
     const gameTitleEl = document.getElementById('current-game-title');
     if (gameTitleEl) gameTitleEl.textContent = game.name;
 
     this.renderCountdown(game.remainingSeconds, game.status);
+
+    const boardEl = document.getElementById('betting-board-container');
+    const headerCard = document.getElementById('round-header-card');
+    const lockedNum = document.getElementById('locked-countdown-num');
+
+    const lockThreshold = game.lockDuration || 5;
+    if (game.remainingSeconds <= lockThreshold) {
+      if (boardEl) boardEl.classList.add('locked');
+      if (headerCard) headerCard.classList.add('is-locked');
+      if (lockedNum) lockedNum.textContent = Math.max(0, game.remainingSeconds);
+    } else {
+      if (boardEl) boardEl.classList.remove('locked');
+      if (headerCard) headerCard.classList.remove('is-locked');
+    }
   }
 
   openBetModal(option, type) {
@@ -701,11 +755,15 @@ class GameController {
   }
 
   onRoundSettled(data) {
-    if (data.gameKey === this.currentGameKey) {
-      // Update local history
-      if (this.gameState && this.gameState[this.currentGameKey]) {
-        this.gameState[this.currentGameKey].history.unshift(data.result);
+    if (this.gameState && this.gameState[data.gameKey]) {
+      if (!this.gameState[data.gameKey].history) this.gameState[data.gameKey].history = [];
+      this.gameState[data.gameKey].history.unshift(data.result);
+      if (this.gameState[data.gameKey].history.length > 100) {
+        this.gameState[data.gameKey].history.pop();
       }
+    }
+
+    if (data.gameKey === this.currentGameKey) {
       this.renderHistoryTab();
 
       // Check if current user had any bets in this round
@@ -728,6 +786,13 @@ class GameController {
           window.soundCtrl.playLose();
           window.showToast(`Period ${data.result.periodId} ended. Result: [${data.result.number} ${data.result.size}]. Better luck next time!`, 'info');
         }
+
+        // Re-fetch profile to ensure wallet balance is 100% accurate
+        window.api.getProfile().then(res => {
+          if (res && res.success && res.user) {
+            this.renderUserState(res.user);
+          }
+        }).catch(() => {});
       }
     }
   }

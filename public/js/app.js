@@ -23,6 +23,30 @@ class MainApp {
       window.gameCtrl.onRoundSettled(data);
     });
 
+    window.api.on('ROUND_STARTED', (data) => {
+      if (window.gameCtrl.gameState && window.gameCtrl.gameState[data.gameKey]) {
+        Object.assign(window.gameCtrl.gameState[data.gameKey], {
+          currentPeriod: data.periodId,
+          periodId: data.periodId,
+          remainingSeconds: data.remainingSeconds,
+          status: data.status || 'OPEN'
+        });
+        if (data.gameKey === window.gameCtrl.currentGameKey) {
+          window.gameCtrl.renderCurrentRound();
+        }
+      }
+    });
+
+    window.api.on('ROUND_LOCKED', (data) => {
+      if (window.gameCtrl.gameState && window.gameCtrl.gameState[data.gameKey]) {
+        window.gameCtrl.gameState[data.gameKey].status = 'LOCKED';
+        window.gameCtrl.gameState[data.gameKey].remainingSeconds = data.remainingSeconds;
+        if (data.gameKey === window.gameCtrl.currentGameKey) {
+          window.gameCtrl.renderCurrentRound();
+        }
+      }
+    });
+
     window.api.on('BET_PLACED', (data) => {
       if (data.gameKey === window.gameCtrl.currentGameKey) {
         if (window.gameCtrl.activeTab === 'mybets') {

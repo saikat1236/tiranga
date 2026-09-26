@@ -12,7 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET || 'tiranga_jwt_secret_2026_super_key';
 
 app.use(express.json());
@@ -490,6 +490,15 @@ function settleRound(gameKey) {
 
   // Start next round
   startNewRound(gameKey);
+
+  // Notify all clients and admin that a new round period has started
+  broadcast({
+    type: 'ROUND_STARTED',
+    gameKey,
+    periodId: game.currentPeriod,
+    remainingSeconds: game.remainingSeconds,
+    status: game.status
+  });
 }
 
 // Global broadcast to connected WebSocket clients
@@ -510,6 +519,7 @@ function initGameLoop() {
   });
 
   setInterval(() => {
+    // 1. Decrement countdowns and handle locks/settlements for all games
     Object.keys(games).forEach(key => {
       const game = games[key];
       
@@ -524,23 +534,39 @@ function initGameLoop() {
           type: 'ROUND_LOCKED',
           gameKey: key,
           periodId: game.currentPeriod,
-          remainingSeconds: game.remainingSeconds
+          remainingSeconds: Math.max(0, game.remainingSeconds)
         });
       }
 
       // Settle round when counter reaches 0
       if (game.remainingSeconds <= 0) {
         settleRound(key);
-      } else {
-        // Regular countdown tick
-        broadcast({
-          type: 'TICK',
-          gameKey: key,
-          periodId: game.currentPeriod,
-          remainingSeconds: game.remainingSeconds,
-          status: game.status
-        });
       }
+    });
+
+    // 2. Broadcast single unified TICK containing all 4 timeframe games to all players & admin
+    const gamesPayload = {};
+    Object.keys(games).forEach(k => {
+      const g = games[k];
+      gamesPayload[k] = {
+        id: g.id,
+        name: g.name,
+        periodId: g.currentPeriod,
+        currentPeriod: g.currentPeriod,
+        remainingSeconds: Math.max(0, g.remainingSeconds),
+        status: g.status,
+        duration: g.duration,
+        lockDuration: g.lockDuration,
+        activeBetsCount: g.activeBets ? g.activeBets.length : 0,
+        controlMode: g.controlMode,
+        manualOverrideNumber: g.manualOverrideNumber
+      };
+    });
+
+    broadcast({
+      type: 'TICK',
+      games: gamesPayload,
+      serverTime: Date.now()
     });
   }, 1000);
 }

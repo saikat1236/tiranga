@@ -742,6 +742,60 @@ const DBService = {
     }
   },
 
+  // Reset testing numbers and set every user balance to specified amount (default 1000)
+  async resetTestingMetricsAndBalances(targetBalance = 1000) {
+    const bal = Math.max(0, parseFloat(targetBalance) || 1000);
+    const now = new Date().toISOString();
+
+    // 1. Clear testing bets from DB and memory
+    await safeQuery('DELETE FROM bets');
+    cache.bets = [];
+
+    // 2. Clear old ledger history from DB and memory
+    await safeQuery('DELETE FROM wallet_ledger');
+    cache.ledger = [];
+
+    // 3. Reset balances for all players in DB
+    await safeQuery('UPDATE users SET balance = $1, updated_at = NOW() WHERE role != $2', [bal, 'admin']);
+
+    // 4. Update memory cache and write initial ₹1000 ledger record for every player
+    for (const [id, user] of cache.users.entries()) {
+      if (user.role !== 'admin') {
+        user.balance = bal;
+        user.updated_at = now;
+
+        const ledgerId = uuidv4();
+        const ledgerItem = {
+          id: ledgerId,
+          userId: user.id,
+          user_id: user.id,
+          type: 'SYSTEM_RESET',
+          amount: bal,
+          referenceId: 'BALANCE_RESET',
+          reference_id: 'BALANCE_RESET',
+          description: `Testing Reset - Balance Set to ₹${bal.toFixed(2)}`,
+          balanceAfter: bal,
+          balance_after: bal,
+          createdAt: now,
+          created_at: now
+        };
+        cache.ledger.unshift(ledgerItem);
+
+        await safeQuery(`
+          INSERT INTO wallet_ledger (id, user_id, type, amount, reference_id, description, balance_after, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [ledgerId, user.id, 'SYSTEM_RESET', bal, 'BALANCE_RESET', `Testing Reset - Balance Set to ₹${bal.toFixed(2)}`, bal, now])
+        .catch(err => console.error('Failed to insert reset ledger entry:', err));
+      }
+    }
+
+    return {
+      success: true,
+      stats: this.getDashboardStats(),
+      usersCount: cache.users.size
+    };
+  },
+
   // Admin Dashboard Stats
   getDashboardStats() {
     const totalWagered = cache.bets.reduce((s, b) => s + (b.amount || 0), 0);

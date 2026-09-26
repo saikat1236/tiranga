@@ -354,6 +354,14 @@ class AdminController {
       });
     }
 
+    // Reset testing numbers and balances
+    const resetSystemBtn = document.getElementById('btn-admin-reset-system');
+    if (resetSystemBtn) {
+      resetSystemBtn.addEventListener('click', async () => {
+        await this.resetTestingSystem(1000);
+      });
+    }
+
     // Refresh data button
     const refreshBtn = document.getElementById('btn-admin-global-refresh');
     if (refreshBtn) {
@@ -756,6 +764,35 @@ class AdminController {
       }
     } catch (e) {
       window.showToast('Failed to clean history', 'error');
+    }
+  }
+
+  async resetTestingSystem(targetBalance = 1000) {
+    if (!confirm(`⚠️ ARE YOU SURE?\\n\\nThis will purge all test bets and reset ALL users' balances to ₹${targetBalance.toFixed(2)}. Continue?`)) {
+      return;
+    }
+    try {
+      const res = await this.adminFetch('/api/admin/reset-system', {
+        method: 'POST',
+        body: JSON.stringify({ balance: targetBalance })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.dashboardStats) this.renderDashboardStats(data.dashboardStats);
+        if (data.users) {
+          this.usersList = data.users;
+          this.renderUsers();
+        }
+        this.loadExposure();
+        this.loadAuditLogs();
+        if (this.activeTab === 'allbets') this.loadAllBets();
+        if (this.activeTab === 'payments') this.loadAllLedger();
+        window.showToast(data.message || `Testing data reset! All user balances set to ₹${targetBalance}.`, 'success');
+      } else {
+        window.showToast(data.error || 'Failed to reset testing data', 'error');
+      }
+    } catch (e) {
+      window.showToast('Failed to reset testing data', 'error');
     }
   }
 

@@ -1107,6 +1107,64 @@ app.post('/api/admin/clean-history', adminAuth, async (req, res) => {
   }
 });
 
+// Admin: Reset testing metrics (bets/ledger) and set every player balance to 1000
+app.post('/api/admin/reset-system', adminAuth, async (req, res) => {
+  try {
+    const targetBalance = (req.body && req.body.balance !== undefined) ? parseFloat(req.body.balance) : 1000;
+
+    // 1. Clear any active bets in ongoing rounds
+    Object.keys(games).forEach(k => {
+      games[k].activeBets = [];
+    });
+
+    // 2. Perform DB purge and balance reset
+    if (DBService.resetTestingMetricsAndBalances) {
+      await DBService.resetTestingMetricsAndBalances(targetBalance);
+    }
+
+    const updatedStats = DBService.getDashboardStats();
+    const updatedUsers = DBService.getAllUsersWithStats();
+
+    // 3. Broadcast real-time updates to all connected admins & clients
+    broadcast({
+      type: 'DASHBOARD_STATS_UPDATED',
+      dashboardStats: updatedStats
+    });
+
+    broadcast({
+      type: 'USERS_UPDATED',
+      users: updatedUsers,
+      dashboardStats: updatedStats
+    });
+
+    // Notify connected player clients of their fresh balance
+    wss.clients.forEach(client => {
+      if (client.userId) {
+        const u = DBService.getUserById(client.userId);
+        if (u) {
+          try {
+            client.send(JSON.stringify({
+              type: 'USER_UPDATED',
+              user: DBService.formatUserStats(u),
+              dashboardStats: updatedStats
+            }));
+          } catch (_) {}
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `System reset successful. Testing metrics cleared and all user balances set to ₹${targetBalance.toFixed(2)}.`,
+      dashboardStats: updatedStats,
+      users: updatedUsers
+    });
+  } catch (err) {
+    console.error('Failed to reset system metrics:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Admin: Dedicated route to serve admin page
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));

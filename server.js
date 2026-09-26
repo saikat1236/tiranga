@@ -385,6 +385,27 @@ function settleRound(gameKey) {
   if (game.manualOverrideNumber !== null && game.manualOverrideNumber !== undefined) {
     winningNumber = parseInt(game.manualOverrideNumber, 10);
     determinationMethod = 'manual_override';
+  } else if (game.manualOverrideTarget) {
+    const target = String(game.manualOverrideTarget).toLowerCase();
+    const exposure = calculateAdminExposure(gameKey);
+    let candidateNumbers = [];
+    if (target === 'big') candidateNumbers = [5, 6, 7, 8, 9];
+    else if (target === 'small') candidateNumbers = [0, 1, 2, 3, 4];
+    else if (target === 'green') candidateNumbers = [1, 3, 7, 9, 5];
+    else if (target === 'red') candidateNumbers = [2, 4, 6, 8, 0];
+    else if (target === 'violet') candidateNumbers = [0, 5];
+
+    if (candidateNumbers.length > 0) {
+      // Pick the candidate number that pays least total money out among valid candidates
+      const sortedCandidates = exposure.outcomeTable
+        .filter(o => candidateNumbers.includes(o.number))
+        .sort((a, b) => a.totalPayout - b.totalPayout);
+      winningNumber = sortedCandidates[0].number;
+      determinationMethod = `forced_${target}`;
+    } else {
+      winningNumber = crypto.randomInt(0, 10);
+      determinationMethod = 'random_fair';
+    }
   } else if (game.controlMode === 'min_payout') {
     const exposure = calculateAdminExposure(gameKey);
     winningNumber = exposure.suggestedMinPayoutNumber;
@@ -491,10 +512,12 @@ function settleRound(gameKey) {
   // Preserve manual override if admin has locked in manual mode
   if (game.controlMode !== 'manual') {
     game.manualOverrideNumber = null;
+    game.manualOverrideTarget = null;
     if (DBService.updateGameSettings) {
       DBService.updateGameSettings(gameKey, {
         controlMode: game.controlMode,
-        manualOverrideNumber: null
+        manualOverrideNumber: null,
+        manualOverrideTarget: null
       });
     }
   }
@@ -572,7 +595,8 @@ function initGameLoop() {
         lockDuration: g.lockDuration,
         activeBetsCount: g.activeBets ? g.activeBets.length : 0,
         controlMode: g.controlMode,
-        manualOverrideNumber: g.manualOverrideNumber
+        manualOverrideNumber: g.manualOverrideNumber,
+        manualOverrideTarget: g.manualOverrideTarget
       };
     });
 
@@ -930,17 +954,20 @@ app.post('/api/admin/set-mode', adminAuth, (req, res) => {
       g.controlMode = mode;
       if (mode !== 'manual') {
         g.manualOverrideNumber = null;
+        g.manualOverrideTarget = null;
       }
       if (DBService.updateGameSettings) {
         DBService.updateGameSettings(k, {
           controlMode: g.controlMode,
-          manualOverrideNumber: g.manualOverrideNumber
+          manualOverrideNumber: g.manualOverrideNumber,
+          manualOverrideTarget: g.manualOverrideTarget
         });
       }
       broadcast({
         type: 'ADMIN_OUTCOME_PRESET',
         gameKey: k,
         manualOverrideNumber: g.manualOverrideNumber,
+        manualOverrideTarget: g.manualOverrideTarget,
         controlMode: g.controlMode
       });
     }
@@ -949,44 +976,70 @@ app.post('/api/admin/set-mode', adminAuth, (req, res) => {
   res.json({ success: true, mode, targetKeys });
 });
 
-// Admin: Set exact winning number for next settlement (Manual Override)
+// Admin: Set exact winning number or target category (Big, Small, Green, Red, Violet)
 app.post('/api/admin/set-outcome', adminAuth, (req, res) => {
-  const { gameKey = 'wingo_60', winningNumber } = req.body;
+  const { gameKey = 'wingo_60', winningNumber, targetType, targetValue } = req.body;
   const targetKeys = (gameKey === 'all' || !games[gameKey]) ? Object.keys(games) : [gameKey];
 
-  const num = parseInt(winningNumber, 10);
-  const isClearing = isNaN(num) || num < 0 || num > 9;
+  let num = null;
+  let target = null;
+  let isClearing = false;
+
+  if (targetType === 'size' || targetType === 'color') {
+    target = String(targetValue).toLowerCase();
+    if (!['big', 'small', 'green', 'red', 'violet'].includes(target)) {
+      isClearing = true;
+    }
+  } else if (winningNumber !== undefined && winningNumber !== null) {
+    const parsed = parseInt(winningNumber, 10);
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 9) {
+      num = parsed;
+    } else {
+      isClearing = true;
+    }
+  } else {
+    isClearing = true;
+  }
 
   targetKeys.forEach(k => {
     const g = games[k];
     if (g) {
       if (isClearing) {
         g.manualOverrideNumber = null;
+        g.manualOverrideTarget = null;
         g.controlMode = 'random';
       } else {
         g.manualOverrideNumber = num;
+        g.manualOverrideTarget = target;
         g.controlMode = 'manual';
       }
       if (DBService.updateGameSettings) {
         DBService.updateGameSettings(k, {
           controlMode: g.controlMode,
-          manualOverrideNumber: g.manualOverrideNumber
+          manualOverrideNumber: g.manualOverrideNumber,
+          manualOverrideTarget: g.manualOverrideTarget
         });
       }
       broadcast({
         type: 'ADMIN_OUTCOME_PRESET',
         gameKey: k,
         manualOverrideNumber: g.manualOverrideNumber,
+        manualOverrideTarget: g.manualOverrideTarget,
         controlMode: g.controlMode
       });
     }
   });
 
+  const message = isClearing 
+    ? 'Manual override cleared. Reverted to automatic mode.'
+    : (target ? `Target locked: Force ${target.toUpperCase()}` : `Target locked: Outcome set to Number ${num}`);
+
   res.json({
     success: true,
     manualOverrideNumber: isClearing ? null : num,
+    manualOverrideTarget: isClearing ? null : target,
     controlMode: isClearing ? 'random' : 'manual',
-    message: isClearing ? 'Manual override cleared' : `Target locked: Outcome set to Number ${num}`
+    message
   });
 });
 
@@ -1324,6 +1377,9 @@ async function startServer() {
             if (s.controlMode) games[k].controlMode = s.controlMode;
             if (s.manualOverrideNumber !== null && s.manualOverrideNumber !== undefined) {
               games[k].manualOverrideNumber = s.manualOverrideNumber;
+            }
+            if (s.manualOverrideTarget) {
+              games[k].manualOverrideTarget = s.manualOverrideTarget;
             }
           }
         });

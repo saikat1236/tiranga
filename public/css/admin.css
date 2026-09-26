@@ -368,10 +368,155 @@
   color: var(--text-main);
 }
 
-.override-number-keypad {
+.override-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.override-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.override-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.override-section-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.override-section-small {
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.override-section-big {
+  background: rgba(217, 119, 6, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.badge-small {
+  background: rgba(37, 99, 235, 0.25);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.badge-big {
+  background: rgba(217, 119, 6, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
+/* Grids */
+.override-color-grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.override-number-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.override-size-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+/* Category Buttons (Color & Size) */
+.override-cat-btn {
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #ffffff;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.override-cat-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.override-cat-btn.selected {
+  border-color: #ffb703 !important;
+  box-shadow: 0 0 24px rgba(255, 183, 3, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.5) !important;
+  transform: scale(1.02);
+}
+
+.override-cat-title {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.override-cat-sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.9;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* Category Color Themes */
+.btn-color-green {
+  background: linear-gradient(135deg, #059669, #10b981) !important;
+}
+
+.btn-color-violet {
+  background: linear-gradient(135deg, #7c3aed, #9333ea) !important;
+}
+
+.btn-color-red {
+  background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+}
+
+.btn-size-big {
+  background: linear-gradient(135deg, #d97706, #f59e0b) !important;
+}
+
+.btn-size-small {
+  background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
 }
 
 /* Number Ball Gradients for Admin Keypad & Tables */
@@ -396,7 +541,7 @@
 }
 
 .override-key-btn {
-  aspect-ratio: 1;
+  aspect-ratio: 1.1;
   border-radius: var(--radius-md);
   border: 2px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
@@ -405,12 +550,17 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-heading);
-  font-size: 1.55rem;
-  font-weight: 900;
   color: #ffffff !important;
   position: relative;
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  padding: 8px 4px;
+}
+
+.override-key-btn .num-digit {
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .override-key-btn:hover {
@@ -421,20 +571,20 @@
 
 .override-key-btn.selected {
   border-color: #ffb703 !important;
-  box-shadow: 0 0 24px rgba(255, 183, 3, 0.75), inset 0 0 10px rgba(255, 255, 255, 0.6) !important;
-  transform: scale(1.08);
+  box-shadow: 0 0 24px rgba(255, 183, 3, 0.85), inset 0 0 10px rgba(255, 255, 255, 0.6) !important;
+  transform: scale(1.06);
 }
 
 .override-key-sub {
-  font-size: 0.6rem;
+  font-size: 0.62rem;
   font-family: var(--font-mono);
   font-weight: 700;
   opacity: 0.95;
   text-transform: uppercase;
   background: rgba(0, 0, 0, 0.35);
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: var(--radius-full);
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
 /* Number cell balls for exposure and audit tables */

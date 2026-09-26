@@ -5,6 +5,7 @@ class AdminController {
     this.currentGameKey = 'wingo_60';
     this.controlMode = 'manual';
     this.manualOverrideNumber = 7;
+    this.manualOverrideTarget = null;
     this.exposureData = null;
     this.usersList = [];
     this.auditLogs = [];
@@ -220,6 +221,7 @@ class AdminController {
     window.api.on('ADMIN_OUTCOME_PRESET', (data) => {
       if (data.gameKey === this.currentGameKey) {
         this.manualOverrideNumber = data.manualOverrideNumber;
+        this.manualOverrideTarget = data.manualOverrideTarget;
         this.controlMode = data.controlMode;
         this.renderControlModeState();
       }
@@ -264,6 +266,7 @@ class AdminController {
           if (g.controlMode) {
             this.controlMode = g.controlMode;
             this.manualOverrideNumber = g.manualOverrideNumber;
+            this.manualOverrideTarget = g.manualOverrideTarget;
             this.renderControlModeState();
           }
         }
@@ -284,6 +287,15 @@ class AdminController {
       key.addEventListener('click', async () => {
         const num = parseInt(key.dataset.num, 10);
         await this.forceWinningNumber(num);
+      });
+    });
+
+    // Category Outcome Buttons (Color & Size Overrides)
+    document.querySelectorAll('.override-cat-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetType = btn.dataset.targetType; // 'color' | 'size'
+        const targetVal = btn.dataset.targetVal;   // 'green' | 'violet' | 'red' | 'big' | 'small'
+        await this.forceCategoryOutcome(targetType, targetVal);
       });
     });
 
@@ -558,9 +570,12 @@ class AdminController {
     }
 
     // Update UI mode badges if changed
-    if (game.controlMode !== this.controlMode || game.manualOverrideNumber !== this.manualOverrideNumber) {
+    if (game.controlMode !== this.controlMode || 
+        game.manualOverrideNumber !== this.manualOverrideNumber ||
+        game.manualOverrideTarget !== this.manualOverrideTarget) {
       this.controlMode = game.controlMode;
       this.manualOverrideNumber = game.manualOverrideNumber;
+      this.manualOverrideTarget = game.manualOverrideTarget;
       this.renderControlModeState();
     }
   }
@@ -592,6 +607,7 @@ class AdminController {
       if (data.success) {
         this.controlMode = 'manual';
         this.manualOverrideNumber = num;
+        this.manualOverrideTarget = null;
         this.renderControlModeState();
         if (window.soundCtrl) window.soundCtrl.playAlert();
         window.showToast(`🎯 TARGET LOCKED: Number [${num}] will win the next round!`, 'success');
@@ -601,15 +617,40 @@ class AdminController {
     }
   }
 
+  async forceCategoryOutcome(targetType, targetValue) {
+    try {
+      const res = await this.adminFetch(`/api/admin/set-outcome`, {
+        method: 'POST',
+        body: JSON.stringify({
+          gameKey: this.currentGameKey,
+          targetType,
+          targetValue
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.controlMode = 'manual';
+        this.manualOverrideNumber = null;
+        this.manualOverrideTarget = targetValue;
+        this.renderControlModeState();
+        if (window.soundCtrl) window.soundCtrl.playAlert();
+        window.showToast(`🎯 TARGET LOCKED: Category [${targetValue.toUpperCase()}] forced for next round!`, 'success');
+      }
+    } catch (e) {
+      window.showToast('Failed to set category override', 'error');
+    }
+  }
+
   async clearOverride() {
     try {
       const res = await this.adminFetch(`/api/admin/set-outcome`, {
         method: 'POST',
-        body: JSON.stringify({ gameKey: this.currentGameKey, winningNumber: null })
+        body: JSON.stringify({ gameKey: this.currentGameKey, winningNumber: null, targetValue: null })
       });
       const data = await res.json();
       if (data.success) {
         this.manualOverrideNumber = null;
+        this.manualOverrideTarget = null;
         this.renderControlModeState();
         window.showToast('Manual outcome cleared. Reverted to automatic mode.', 'info');
       }
@@ -739,10 +780,15 @@ class AdminController {
       btn.classList.toggle('active', btn.dataset.mode === this.controlMode);
     });
 
-    // Highlight keypad
+    // Highlight keypad numbers (0 to 9)
     document.querySelectorAll('.override-key-btn').forEach(key => {
       const keyNum = parseInt(key.dataset.num, 10);
       key.classList.toggle('selected', keyNum === this.manualOverrideNumber);
+    });
+
+    // Highlight category buttons (Green, Violet, Red, Big, Small)
+    document.querySelectorAll('.override-cat-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.targetVal === this.manualOverrideTarget);
     });
 
     const bannerBox = document.getElementById('active-override-status-box');
@@ -758,7 +804,22 @@ class AdminController {
                           [2,4,6,8].includes(this.manualOverrideNumber) ? 'RED' :
                           this.manualOverrideNumber === 0 ? 'RED + VIOLET' : 'GREEN + VIOLET';
         const sizeName = this.manualOverrideNumber >= 5 ? 'BIG' : 'SMALL';
-        labelEl.innerHTML = `🎯 <strong>MANUAL OVERRIDE ACTIVE:</strong> Next Winning Outcome is Guaranteed to <strong>[Number ${this.manualOverrideNumber}]</strong> (${colorName}, ${sizeName})`;
+        labelEl.innerHTML = `🎯 <strong>MANUAL OVERRIDE ACTIVE:</strong> Next Outcome is Guaranteed to <strong>[Number ${this.manualOverrideNumber}]</strong> (${colorName}, ${sizeName})`;
+      }
+    } else if (this.manualOverrideTarget) {
+      if (bannerBox) {
+        bannerBox.style.border = '1px solid #f59e0b';
+        bannerBox.style.background = 'rgba(245, 158, 11, 0.15)';
+      }
+      if (labelEl) {
+        const t = this.manualOverrideTarget.toUpperCase();
+        let detail = '';
+        if (t === 'BIG') detail = 'Numbers [5, 6, 7, 8, 9]';
+        else if (t === 'SMALL') detail = 'Numbers [0, 1, 2, 3, 4]';
+        else if (t === 'GREEN') detail = 'Numbers [1, 3, 7, 9] (Violet: 5)';
+        else if (t === 'RED') detail = 'Numbers [2, 4, 6, 8] (Violet: 0)';
+        else if (t === 'VIOLET') detail = 'Numbers [0, 5]';
+        labelEl.innerHTML = `🎯 <strong>CATEGORY OVERRIDE ACTIVE:</strong> Forcing <strong>[${t}]</strong> (${detail}) · Engine will auto-select minimum house payout!`;
       }
     } else {
       if (bannerBox) {

@@ -211,7 +211,7 @@
         <div class="override-container">
           <div class="override-status-bar" id="active-override-status-box">
             <div class="active-override-label" id="active-override-label">
-              🎯 <strong>Next Forced Outcome:</strong> Click any number below to guarantee it wins!
+              🎯 <strong>Next Forced Outcome:</strong> Select Color, Small (0-4), Big (5-9), or exact Number below.
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="btn btn-secondary btn-sm" id="btn-clear-override">
@@ -223,48 +223,112 @@
             </div>
           </div>
 
-          <!-- Numbers 0-9 Keypad -->
-          <div class="override-number-keypad">
-            <button class="override-key-btn num-ball-0" data-num="0">
-              <span>0</span>
-              <span class="override-key-sub">Red/Vio</span>
-            </button>
-            <button class="override-key-btn num-ball-1" data-num="1">
-              <span>1</span>
-              <span class="override-key-sub">Green</span>
-            </button>
-            <button class="override-key-btn num-ball-2" data-num="2">
-              <span>2</span>
-              <span class="override-key-sub">Red</span>
-            </button>
-            <button class="override-key-btn num-ball-3" data-num="3">
-              <span>3</span>
-              <span class="override-key-sub">Green</span>
-            </button>
-            <button class="override-key-btn num-ball-4" data-num="4">
-              <span>4</span>
-              <span class="override-key-sub">Red</span>
-            </button>
-            <button class="override-key-btn num-ball-5" data-num="5">
-              <span>5</span>
-              <span class="override-key-sub">Grn/Vio</span>
-            </button>
-            <button class="override-key-btn num-ball-6" data-num="6">
-              <span>6</span>
-              <span class="override-key-sub">Red</span>
-            </button>
-            <button class="override-key-btn num-ball-7 selected" data-num="7">
-              <span>7</span>
-              <span class="override-key-sub">Green</span>
-            </button>
-            <button class="override-key-btn num-ball-8" data-num="8">
-              <span>8</span>
-              <span class="override-key-sub">Red</span>
-            </button>
-            <button class="override-key-btn num-ball-9" data-num="9">
-              <span>9</span>
-              <span class="override-key-sub">Green</span>
-            </button>
+          <!-- SECTION 1: COLOR OVERRIDES (Top Row) -->
+          <div class="override-section">
+            <div class="override-section-header">
+              <div class="override-section-title">
+                <span>🎨 Color Overrides</span>
+              </div>
+              <span class="override-section-hint">Guarantees next winning color</span>
+            </div>
+            <div class="override-color-grid">
+              <button class="override-cat-btn btn-color-green" data-target-type="color" data-target-val="green">
+                <span class="override-cat-title">Green</span>
+                <span class="override-cat-sub">2x / 1.5x (1, 3, 5, 7, 9)</span>
+              </button>
+              <button class="override-cat-btn btn-color-violet" data-target-type="color" data-target-val="violet">
+                <span class="override-cat-title">Violet</span>
+                <span class="override-cat-sub">4.5x (0, 5)</span>
+              </button>
+              <button class="override-cat-btn btn-color-red" data-target-type="color" data-target-val="red">
+                <span class="override-cat-title">Red</span>
+                <span class="override-cat-sub">2x / 1.5x (0, 2, 4, 6, 8)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- SECTION 2: SMALL NUMBERS (0 - 4) -->
+          <div class="override-section override-section-small">
+            <div class="override-section-header">
+              <div class="override-section-title">
+                <span class="badge-pill badge-small">🔹 Small Numbers Section (0 – 4)</span>
+              </div>
+              <span class="override-section-hint">Forces exact number outcome in Small range</span>
+            </div>
+            <div class="override-number-row">
+              <button class="override-key-btn num-ball-0" data-num="0">
+                <span class="num-digit">0</span>
+                <span class="override-key-sub">Red/Vio · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-1" data-num="1">
+                <span class="num-digit">1</span>
+                <span class="override-key-sub">Green · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-2" data-num="2">
+                <span class="num-digit">2</span>
+                <span class="override-key-sub">Red · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-3" data-num="3">
+                <span class="num-digit">3</span>
+                <span class="override-key-sub">Green · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-4" data-num="4">
+                <span class="num-digit">4</span>
+                <span class="override-key-sub">Red · 9x</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- SECTION 3: BIG NUMBERS (5 - 9) -->
+          <div class="override-section override-section-big">
+            <div class="override-section-header">
+              <div class="override-section-title">
+                <span class="badge-pill badge-big">🔸 Big Numbers Section (5 – 9)</span>
+              </div>
+              <span class="override-section-hint">Forces exact number outcome in Big range</span>
+            </div>
+            <div class="override-number-row">
+              <button class="override-key-btn num-ball-5" data-num="5">
+                <span class="num-digit">5</span>
+                <span class="override-key-sub">Grn/Vio · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-6" data-num="6">
+                <span class="num-digit">6</span>
+                <span class="override-key-sub">Red · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-7 selected" data-num="7">
+                <span class="num-digit">7</span>
+                <span class="override-key-sub">Green · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-8" data-num="8">
+                <span class="num-digit">8</span>
+                <span class="override-key-sub">Red · 9x</span>
+              </button>
+              <button class="override-key-btn num-ball-9" data-num="9">
+                <span class="num-digit">9</span>
+                <span class="override-key-sub">Green · 9x</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- SECTION 4: SIZE OVERRIDES (Bottom Row) -->
+          <div class="override-section">
+            <div class="override-section-header">
+              <div class="override-section-title">
+                <span>📏 Size Category Overrides</span>
+              </div>
+              <span class="override-section-hint">Forces next outcome to Big or Small</span>
+            </div>
+            <div class="override-size-grid">
+              <button class="override-cat-btn btn-size-big" data-target-type="size" data-target-val="big">
+                <span class="override-cat-title">Big</span>
+                <span class="override-cat-sub">(5 - 9) 2x Multiplier</span>
+              </button>
+              <button class="override-cat-btn btn-size-small" data-target-type="size" data-target-val="small">
+                <span class="override-cat-title">Small</span>
+                <span class="override-cat-sub">(0 - 4) 2x Multiplier</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

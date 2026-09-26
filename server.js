@@ -485,8 +485,10 @@ function settleRound(gameKey) {
     settlementDetails: settlement.settlementDetails
   });
 
-  // Reset manual override if set for one-shot control
-  game.manualOverrideNumber = null;
+  // Preserve manual override if admin has locked in manual mode
+  if (game.controlMode !== 'manual') {
+    game.manualOverrideNumber = null;
+  }
 
   // Start next round
   startNewRound(gameKey);
@@ -903,41 +905,71 @@ app.get('/api/admin/exposure', adminAuth, (req, res) => {
 // Admin: Set game control mode (random / manual / min_payout / max_payout)
 app.post('/api/admin/set-mode', adminAuth, (req, res) => {
   const { gameKey = 'wingo_60', mode } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
   if (!['random', 'manual', 'min_payout', 'max_payout'].includes(mode)) {
     return res.status(400).json({ success: false, error: 'Invalid mode' });
   }
 
-  game.controlMode = mode;
-  res.json({ success: true, mode: game.controlMode });
+  const targetKeys = (gameKey === 'all' || !games[gameKey]) ? Object.keys(games) : [gameKey];
+  targetKeys.forEach(k => {
+    const g = games[k];
+    if (g) {
+      g.controlMode = mode;
+      if (mode !== 'manual') {
+        g.manualOverrideNumber = null;
+      }
+      broadcast({
+        type: 'ADMIN_OUTCOME_PRESET',
+        gameKey: k,
+        manualOverrideNumber: g.manualOverrideNumber,
+        controlMode: g.controlMode
+      });
+    }
+  });
+
+  res.json({ success: true, mode, targetKeys });
 });
 
 // Admin: Set exact winning number for next settlement (Manual Override)
 app.post('/api/admin/set-outcome', adminAuth, (req, res) => {
   const { gameKey = 'wingo_60', winningNumber } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
+  const targetKeys = (gameKey === 'all' || !games[gameKey]) ? Object.keys(games) : [gameKey];
 
   const num = parseInt(winningNumber, 10);
-  if (isNaN(num) || num < 0 || num > 9) {
-    game.manualOverrideNumber = null;
-    return res.json({ success: true, manualOverrideNumber: null, message: 'Manual override cleared' });
-  }
+  const isClearing = isNaN(num) || num < 0 || num > 9;
 
-  game.manualOverrideNumber = num;
-  res.json({ success: true, manualOverrideNumber: num, message: `Next round forced to number ${num}` });
+  targetKeys.forEach(k => {
+    const g = games[k];
+    if (g) {
+      if (isClearing) {
+        g.manualOverrideNumber = null;
+        g.controlMode = 'random';
+      } else {
+        g.manualOverrideNumber = num;
+        g.controlMode = 'manual';
+      }
+      broadcast({
+        type: 'ADMIN_OUTCOME_PRESET',
+        gameKey: k,
+        manualOverrideNumber: g.manualOverrideNumber,
+        controlMode: g.controlMode
+      });
+    }
+  });
+
+  res.json({
+    success: true,
+    manualOverrideNumber: isClearing ? null : num,
+    controlMode: isClearing ? 'random' : 'manual',
+    message: isClearing ? 'Manual override cleared' : `Target locked: Outcome set to Number ${num}`
+  });
 });
 
 // Admin: Force immediate settlement of current period
 app.post('/api/admin/force-settle', adminAuth, (req, res) => {
   const { gameKey = 'wingo_60' } = req.body;
-  const game = games[gameKey];
-  if (!game) return res.status(400).json({ success: false, error: 'Invalid game' });
-
-  settleRound(gameKey);
-  res.json({ success: true, message: 'Round settled immediately' });
+  const targetKeys = (gameKey === 'all' || !games[gameKey]) ? Object.keys(games) : [gameKey];
+  targetKeys.forEach(k => settleRound(k));
+  res.json({ success: true, message: `Round(s) settled immediately: ${targetKeys.join(', ')}` });
 });
 
 // Admin: Speed up timer (sets remaining to 5 seconds to test lock and settle quickly)

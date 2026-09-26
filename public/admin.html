@@ -124,6 +124,7 @@
       <div class="live-strip-item">
         <span class="live-strip-label">Active Game Mode</span>
         <select id="admin-game-select" class="form-input form-input-sm">
+          <option value="all">⚡ All Games (Global Override)</option>
           <option value="wingo_30">Win Go 30s</option>
           <option value="wingo_60" selected>Win Go 1Min</option>
           <option value="wingo_180">Win Go 3Min</option>
@@ -198,9 +199,14 @@
             <div class="active-override-label" id="active-override-label">
               🎯 <strong>Next Forced Outcome:</strong> Click any number below to guarantee it wins!
             </div>
-            <button class="btn btn-secondary btn-sm" id="btn-clear-override">
-              Clear Override
-            </button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-secondary btn-sm" id="btn-clear-override">
+                Clear Override
+              </button>
+              <button class="btn btn-danger btn-sm" id="btn-keypad-settle-now" title="Force settle immediately with chosen outcome">
+                ⚡ Force Settle Now
+              </button>
+            </div>
           </div>
 
           <!-- Numbers 0-9 Keypad -->

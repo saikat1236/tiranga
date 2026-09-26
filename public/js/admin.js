@@ -243,10 +243,17 @@ class AdminController {
       });
     }
 
-    // Force Settle Now Button
+    // Force Settle Now Buttons (top bar and keypad)
     const forceSettleBtn = document.getElementById('btn-admin-force-settle');
     if (forceSettleBtn) {
       forceSettleBtn.addEventListener('click', async () => {
+        await this.forceSettle();
+      });
+    }
+
+    const keypadSettleBtn = document.getElementById('btn-keypad-settle-now');
+    if (keypadSettleBtn) {
+      keypadSettleBtn.addEventListener('click', async () => {
         await this.forceSettle();
       });
     }

@@ -144,6 +144,11 @@ class AdminController {
     });
 
     window.api.on('INIT_STATE', (data) => {
+      if (data.dashboardStats) {
+        this.renderDashboardStats(data.dashboardStats);
+      } else {
+        this.loadDashboardStats();
+      }
       this.loadExposure();
       this.loadUsers();
       this.loadAuditLogs();
@@ -153,26 +158,62 @@ class AdminController {
       this.updateFromTick(data);
     });
 
+    window.api.on('ROUND_STARTED', (data) => {
+      if (data.gameKey === this.currentGameKey) {
+        this.loadExposure();
+      }
+    });
+
     window.api.on('ROUND_SETTLED', (data) => {
+      if (data.dashboardStats) {
+        this.renderDashboardStats(data.dashboardStats);
+      } else {
+        this.loadDashboardStats();
+      }
       this.loadExposure();
       this.loadAuditLogs();
-      this.loadUsers();
+      if (this.activeTab === 'users') this.loadUsers();
+      if (this.activeTab === 'allbets') this.loadAllBets();
+      if (this.activeTab === 'payments') this.loadAllLedger();
     });
 
     window.api.on('BET_PLACED', (data) => {
       if (data.gameKey === this.currentGameKey) {
-        this.loadExposure();
+        if (data.updatedExposure) {
+          this.exposureData = data.updatedExposure;
+          this.renderExposure();
+        } else {
+          this.loadExposure();
+        }
       }
-      this.loadUsers();
+      if (data.dashboardStats) {
+        this.renderDashboardStats(data.dashboardStats);
+      } else {
+        this.loadDashboardStats();
+      }
+      if (this.activeTab === 'allbets') this.loadAllBets();
+      if (this.activeTab === 'payments') this.loadAllLedger();
+      if (this.activeTab === 'users') this.loadUsers();
     });
 
     window.api.on('USER_UPDATED', (data) => {
-      this.loadUsers();
+      if (data.dashboardStats) {
+        this.renderDashboardStats(data.dashboardStats);
+      } else {
+        this.loadDashboardStats();
+      }
+      if (this.activeTab === 'users') this.loadUsers();
+      if (this.activeTab === 'payments') this.loadAllLedger();
     });
 
     window.api.on('USERS_UPDATED', (data) => {
       this.usersList = data.users || [];
       this.renderUsers();
+      if (data.dashboardStats) {
+        this.renderDashboardStats(data.dashboardStats);
+      } else {
+        this.loadDashboardStats();
+      }
     });
 
     window.api.on('ADMIN_OUTCOME_PRESET', (data) => {

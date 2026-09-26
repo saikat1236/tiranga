@@ -434,7 +434,8 @@ function settleRound(gameKey) {
         // Live sync updated user balance across WebSocket clients
         broadcast({
           type: 'USER_UPDATED',
-          user: DBService.formatUserStats(DBService.getUserById(user.id))
+          user: DBService.formatUserStats(DBService.getUserById(user.id)),
+          dashboardStats: DBService.getDashboardStats()
         });
       }
     }
@@ -483,7 +484,8 @@ function settleRound(gameKey) {
     type: 'ROUND_SETTLED',
     gameKey,
     result: historyItem,
-    settlementDetails: settlement.settlementDetails
+    settlementDetails: settlement.settlementDetails,
+    dashboardStats: DBService.getDashboardStats()
   });
 
   // Preserve manual override if admin has locked in manual mode
@@ -585,7 +587,8 @@ wss.on('connection', (ws) => {
   // Send initial full system state to newly connected client (without forcing a default user)
   ws.send(JSON.stringify({
     type: 'INIT_STATE',
-    games: games
+    games: games,
+    dashboardStats: DBService.getDashboardStats()
   }));
 
   ws.on('message', (message) => {
@@ -810,7 +813,8 @@ app.post('/api/bet', requireAuth, (req, res) => {
     type: 'BET_PLACED',
     gameKey,
     bet: betRecord,
-    updatedExposure: calculateAdminExposure(gameKey)
+    updatedExposure: calculateAdminExposure(gameKey),
+    dashboardStats: DBService.getDashboardStats()
   });
 
   res.json({
@@ -845,7 +849,8 @@ app.post('/api/wallet/recharge', requireAuth, (req, res) => {
 
   broadcast({
     type: 'USER_UPDATED',
-    user: updatedUser
+    user: updatedUser,
+    dashboardStats: DBService.getDashboardStats()
   });
 
   res.json({ success: true, balance: newBalance, user: updatedUser });
@@ -1222,7 +1227,8 @@ app.post('/api/users/:id/adjust-balance', adminAuth, (req, res) => {
   const formatted = DBService.formatUserStats(DBService.getUserById(user.id));
   broadcast({
     type: 'USER_UPDATED',
-    user: formatted
+    user: formatted,
+    dashboardStats: DBService.getDashboardStats()
   });
 
   res.json({ success: true, user: formatted });
@@ -1250,7 +1256,8 @@ app.post('/api/admin/adjust-balance', adminAuth, (req, res) => {
   const formatted = DBService.formatUserStats(DBService.getUserById(user.id));
   broadcast({
     type: 'USER_UPDATED',
-    user: formatted
+    user: formatted,
+    dashboardStats: DBService.getDashboardStats()
   });
 
   res.json({ success: true, user: formatted });

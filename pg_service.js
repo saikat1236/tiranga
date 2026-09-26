@@ -40,8 +40,8 @@ try {
 const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 60000,
+  max: 3,
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000

@@ -147,12 +147,26 @@
         <span class="live-strip-val" id="admin-live-bets-count">0</span>
       </div>
 
+      <div class="live-strip-item">
+        <span class="live-strip-label">Status</span>
+        <span class="badge badge-success" id="admin-game-status-badge" style="font-size:0.75rem;padding:4px 9px;border-radius:12px;font-weight:600;display:inline-block;">● Running</span>
+      </div>
+
       <div class="live-strip-actions">
+        <button class="btn btn-warning btn-sm" id="btn-admin-pause" title="Pause or Resume game countdowns">
+          ⏸️ Pause
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-admin-restart" title="Restart current round fresh">
+          🔄 Restart Round
+        </button>
         <button class="btn btn-secondary btn-sm" id="btn-admin-speed-timer" title="Accelerate round timer to 5s remaining">
           ⏩ Fast Forward (5s)
         </button>
         <button class="btn btn-danger btn-sm" id="btn-admin-force-settle" title="Settle round immediately">
           ⚡ Force Settle Now
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-admin-clean-history" title="Clean older game history and retain strictly recent 100 per timeframe">
+          🧹 Clean DB (100/TF)
         </button>
       </div>
     </div>

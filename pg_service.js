@@ -629,13 +629,26 @@ const DBService = {
     };
 
     cache.history[key].unshift(historyItem);
-    if (cache.history[key].length > 200) cache.history[key].pop();
+    if (cache.history[key].length > 100) cache.history[key].pop();
 
     safeQuery(`
       INSERT INTO game_history (id, game_key, period_id, number, color, colors, size, total_bets, total_payout, house_profit, mode, settled_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [id, key, historyItem.periodId, item.number, item.color, colorsJson, item.size, historyItem.totalBets, historyItem.totalPayout, historyItem.houseProfit, historyItem.mode, now])
-    .catch(err => console.error('Failed to insert game history into PostgreSQL:', err));
+    .then(() => {
+      // Automatically keep strictly recent 100 games per timeframe (400 total max)
+      return safeQuery(`
+        DELETE FROM game_history
+        WHERE game_key = $1
+          AND id NOT IN (
+            SELECT id FROM game_history
+            WHERE game_key = $1
+            ORDER BY settled_at DESC
+            LIMIT 100
+          )
+      `, [key]);
+    })
+    .catch(err => console.error('Failed to insert/prune game history into PostgreSQL:', err));
   },
 
   getGameHistory(gameKey, limit = 50) {
@@ -669,17 +682,61 @@ const DBService = {
     };
 
     cache.auditLogs.unshift(item);
-    if (cache.auditLogs.length > 200) cache.auditLogs.pop();
+    if (cache.auditLogs.length > 100) cache.auditLogs.pop();
 
     safeQuery(`
       INSERT INTO audit_logs (id, game_key, period_id, winning_number, color, size, total_wagered, total_payout, house_profit, determination_method, bets_count, timestamp)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [id, item.gameKey, item.periodId, item.winningNumber, item.color, item.size, item.totalWagered, item.totalPayout, item.houseProfit, item.determinationMethod, item.betsCount, now])
-    .catch(err => console.error('Failed to insert audit log into PostgreSQL:', err));
+    .then(() => {
+      // Automatically keep strictly recent 100 audit logs per timeframe
+      return safeQuery(`
+        DELETE FROM audit_logs
+        WHERE game_key = $1
+          AND id NOT IN (
+            SELECT id FROM audit_logs
+            WHERE game_key = $1
+            ORDER BY timestamp DESC
+            LIMIT 100
+          )
+      `, [item.gameKey]);
+    })
+    .catch(err => console.error('Failed to insert/prune audit log into PostgreSQL:', err));
   },
 
   getAuditLogs(limit = 100) {
     return cache.auditLogs.slice(0, limit);
+  },
+
+  // Manual or automatic mass prune
+  async cleanOldHistory(keepPerTF = 100) {
+    const timeframes = ['wingo_30', 'wingo_60', 'wingo_180', 'wingo_300'];
+    for (const g of timeframes) {
+      if (cache.history[g] && cache.history[g].length > keepPerTF) {
+        cache.history[g] = cache.history[g].slice(0, keepPerTF);
+      }
+      await safeQuery(`
+        DELETE FROM game_history
+        WHERE game_key = $1
+          AND id NOT IN (
+            SELECT id FROM game_history
+            WHERE game_key = $1
+            ORDER BY settled_at DESC
+            LIMIT $2
+          )
+      `, [g, keepPerTF]).catch(() => {});
+
+      await safeQuery(`
+        DELETE FROM audit_logs
+        WHERE game_key = $1
+          AND id NOT IN (
+            SELECT id FROM audit_logs
+            WHERE game_key = $1
+            ORDER BY timestamp DESC
+            LIMIT $2
+          )
+      `, [g, keepPerTF]).catch(() => {});
+    }
   },
 
   // Admin Dashboard Stats

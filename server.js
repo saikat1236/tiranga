@@ -534,6 +534,7 @@ function initGameLoop() {
     Object.keys(games).forEach(key => {
       const game = games[key];
       
+      if (game.isPaused) return;
       if (game.status === 'SETTLING') return;
 
       game.remainingSeconds -= 1;
@@ -565,7 +566,8 @@ function initGameLoop() {
         periodId: g.currentPeriod,
         currentPeriod: g.currentPeriod,
         remainingSeconds: Math.max(0, g.remainingSeconds),
-        status: g.status,
+        status: g.isPaused ? 'PAUSED' : g.status,
+        isPaused: !!g.isPaused,
         duration: g.duration,
         lockDuration: g.lockDuration,
         activeBetsCount: g.activeBets ? g.activeBets.length : 0,
@@ -1004,6 +1006,52 @@ app.post('/api/admin/speed-timer', adminAuth, (req, res) => {
 
   game.remainingSeconds = Math.max(1, parseInt(seconds, 10));
   res.json({ success: true, remainingSeconds: game.remainingSeconds });
+});
+
+// Admin: Pause / Resume / Restart Game Loop
+app.post('/api/admin/game-status', adminAuth, (req, res) => {
+  const { gameKey = 'wingo_60', action = 'pause' } = req.body;
+  const targetKeys = (gameKey === 'all' || !games[gameKey]) ? Object.keys(games) : [gameKey];
+
+  targetKeys.forEach(k => {
+    const g = games[k];
+    if (g) {
+      if (action === 'pause') {
+        g.isPaused = true;
+      } else if (action === 'resume') {
+        g.isPaused = false;
+      } else if (action === 'restart') {
+        g.isPaused = false;
+        startNewRound(k);
+      }
+    }
+  });
+
+  const statusMap = {};
+  targetKeys.forEach(k => {
+    statusMap[k] = { isPaused: !!games[k].isPaused, remainingSeconds: games[k].remainingSeconds, status: games[k].status };
+  });
+
+  broadcast({
+    type: 'GAME_STATUS_CHANGED',
+    gameKey,
+    action,
+    statusMap
+  });
+
+  res.json({ success: true, action, targetKeys, statusMap });
+});
+
+// Admin: Clean old history manually
+app.post('/api/admin/clean-history', adminAuth, async (req, res) => {
+  try {
+    if (DBService.cleanOldHistory) {
+      await DBService.cleanOldHistory(100);
+    }
+    res.json({ success: true, message: 'Game history cleaned: keeping recent 100 per timeframe (400 total).' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Admin: Dedicated route to serve admin page

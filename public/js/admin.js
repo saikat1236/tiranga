@@ -14,6 +14,7 @@ class AdminController {
     this.selectedAdjustAction = 'credit';
     this.searchQuery = '';
     this.statusFilter = 'all';
+    this.isPaused = false;
     this.adminToken = localStorage.getItem('tiranga_admin_token') || null;
   }
 
@@ -223,6 +224,16 @@ class AdminController {
         this.renderControlModeState();
       }
     });
+
+    window.api.on('GAME_STATUS_CHANGED', (data) => {
+      if (data.statusMap) {
+        const current = data.statusMap[this.currentGameKey];
+        if (current) {
+          this.isPaused = !!current.isPaused;
+          this.renderGameStatusBadge();
+        }
+      }
+    });
   }
 
   bindEvents() {
@@ -304,6 +315,30 @@ class AdminController {
     if (speedTimerBtn) {
       speedTimerBtn.addEventListener('click', async () => {
         await this.speedTimer(5);
+      });
+    }
+
+    // Pause / Resume Game Loop
+    const pauseBtn = document.getElementById('btn-admin-pause');
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', async () => {
+        await this.toggleGamePause();
+      });
+    }
+
+    // Restart Round
+    const restartBtn = document.getElementById('btn-admin-restart');
+    if (restartBtn) {
+      restartBtn.addEventListener('click', async () => {
+        await this.restartGameRound();
+      });
+    }
+
+    // Clean old history
+    const cleanHistBtn = document.getElementById('btn-admin-clean-history');
+    if (cleanHistBtn) {
+      cleanHistBtn.addEventListener('click', async () => {
+        await this.cleanDatabaseHistory();
       });
     }
 
@@ -491,6 +526,10 @@ class AdminController {
     const game = gamesMap[this.currentGameKey];
     if (!game) return;
 
+    // Update pause state and status badge
+    this.isPaused = !!game.isPaused;
+    this.renderGameStatusBadge();
+
     // Update banner period & countdown
     const periodEl = document.getElementById('admin-live-period');
     const timerEl = document.getElementById('admin-live-timer');
@@ -498,15 +537,20 @@ class AdminController {
 
     if (periodEl) periodEl.textContent = game.periodId || game.currentPeriod;
     if (timerEl) {
-      const safeSec = Math.max(0, parseInt(game.remainingSeconds, 10) || 0);
-      const min = Math.floor(safeSec / 60);
-      const sec = safeSec % 60;
-      timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-      const lockSec = game.lockDuration || 5;
-      if (safeSec <= lockSec) {
-        timerEl.classList.add('urgent');
-      } else {
+      if (this.isPaused) {
+        timerEl.textContent = 'PAUSED';
         timerEl.classList.remove('urgent');
+      } else {
+        const safeSec = Math.max(0, parseInt(game.remainingSeconds, 10) || 0);
+        const min = Math.floor(safeSec / 60);
+        const sec = safeSec % 60;
+        timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        const lockSec = game.lockDuration || 5;
+        if (safeSec <= lockSec) {
+          timerEl.classList.add('urgent');
+        } else {
+          timerEl.classList.remove('urgent');
+        }
       }
     }
     if (betsCountEl) {
@@ -591,6 +635,86 @@ class AdminController {
       }
     } catch (e) {
       window.showToast('Failed to force settle', 'error');
+    }
+  }
+
+  renderGameStatusBadge() {
+    const badge = document.getElementById('admin-game-status-badge');
+    const pauseBtn = document.getElementById('btn-admin-pause');
+    if (badge) {
+      if (this.isPaused) {
+        badge.textContent = '⏸️ Paused';
+        badge.className = 'badge badge-warning';
+      } else {
+        badge.textContent = '● Running';
+        badge.className = 'badge badge-success';
+      }
+    }
+    if (pauseBtn) {
+      if (this.isPaused) {
+        pauseBtn.innerHTML = '▶️ Resume';
+        pauseBtn.classList.remove('btn-warning');
+        pauseBtn.classList.add('btn-primary');
+        pauseBtn.title = 'Resume game countdowns';
+      } else {
+        pauseBtn.innerHTML = '⏸️ Pause';
+        pauseBtn.classList.remove('btn-primary');
+        pauseBtn.classList.add('btn-warning');
+        pauseBtn.title = 'Pause game countdowns';
+      }
+    }
+  }
+
+  async toggleGamePause() {
+    const action = this.isPaused ? 'resume' : 'pause';
+    try {
+      const res = await this.adminFetch('/api/admin/game-status', {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey, action })
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.isPaused = (action === 'pause');
+        this.renderGameStatusBadge();
+        window.showToast(action === 'pause' ? 'Game loop paused' : 'Game loop resumed', 'info');
+      }
+    } catch (e) {
+      window.showToast('Failed to update game status', 'error');
+    }
+  }
+
+  async restartGameRound() {
+    try {
+      const res = await this.adminFetch('/api/admin/game-status', {
+        method: 'POST',
+        body: JSON.stringify({ gameKey: this.currentGameKey, action: 'restart' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.isPaused = false;
+        this.renderGameStatusBadge();
+        this.loadExposure();
+        window.showToast('Round restarted fresh!', 'info');
+      }
+    } catch (e) {
+      window.showToast('Failed to restart round', 'error');
+    }
+  }
+
+  async cleanDatabaseHistory() {
+    if (!confirm('This will retain strictly recent 100 settled games per timeframe (max 400 total) and delete older historical rows. Continue?')) {
+      return;
+    }
+    try {
+      const res = await this.adminFetch('/api/admin/clean-history', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        this.loadAuditLogs();
+        this.loadDashboardStats();
+        window.showToast(data.message || 'Cleaned old history successfully!', 'info');
+      }
+    } catch (e) {
+      window.showToast('Failed to clean history', 'error');
     }
   }
 
